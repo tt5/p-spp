@@ -94,8 +94,8 @@ and if nC >= 3: one C
 
 Add 4 energy to ND where queens are.
 
-Remove all energy from ND where predators are.
+Remove all energy from ND where no prey.
 
-Add 1 energy to AC where predators are.
+Add 1 energy to AC where predators.
 
 tumble (64x64)
