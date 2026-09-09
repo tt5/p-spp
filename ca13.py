@@ -338,8 +338,8 @@ AC2 = np.zeros((size,size), dtype='int')
 # 5 C
 
 a0 = 0.5
-alpha1 = 1.0 # help from defectors
-alpha2 = 1.1 # help from defectors
+alpha1 = 1.3 # help from defectors
+alpha2 = 1.0 # help from defectors
 gamma = 1.0 # cooperation for C
 
 # interference
@@ -366,7 +366,7 @@ C2[size-1, size-1] = 4
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(1000):
 
     promote_queens_njit(C1, AC1, ND1, size)
     remove_queens_njit(C1, ND1, size)
@@ -393,9 +393,6 @@ for tick in range(2000):
     if tick%1==0:
         AC1 = AC1 + 1 - ((C1 != 4) & (C1 != 5)) * 1
         AC2 = AC2 + 1 - ((C2 != 4) & (C2 != 5)) * 1
-
-    nd_pre = ND1.copy()
-    ac_pre = AC1.copy()
 
     ss = random.choice([64])
 
@@ -440,10 +437,6 @@ for tick in range(2000):
                           (C1 == 3, COL_D), (C1 == 4, COL_A),
                           (C1 == 5, COL_C)]:
             frame1[mask] = np.clip(frame1[mask] * 0.3 + col * 0.7, 0, 255)
-        trail = np.clip(nd_pre * 6, 0, 255).astype('int')
-        frame1[:, :, 0] = (frame1[:, :, 0] * 0.9 + trail * 0.1).astype('int')
-        frame1[:, :, 1] = (frame1[:, :, 1] * 0.9 + trail * 0.1).astype('int')
-        frame1[:, :, 2] = (frame1[:, :, 2] * 0.9 + trail * 0.1).astype('int')
         frame1 = np.clip(frame1, 0, 255)
         out[y0:y0+size, x0:x0+size] = frame1
 
@@ -457,10 +450,6 @@ for tick in range(2000):
                           (C2 == 3, COL_D), (C2 == 4, COL_A),
                           (C2 == 5, COL_C)]:
             frame2[mask] = np.clip(frame2[mask] * 0.3 + col * 0.7, 0, 255)
-        trail = np.clip(ND2 * 6, 0, 255).astype('int')
-        frame2[:, :, 0] = (frame2[:, :, 0] * 0.9 + trail * 0.1).astype('int')
-        frame2[:, :, 1] = (frame2[:, :, 1] * 0.9 + trail * 0.1).astype('int')
-        frame2[:, :, 2] = (frame2[:, :, 2] * 0.9 + trail * 0.1).astype('int')
         frame2 = np.clip(frame2, 0, 255)
         out[y0:y0+size, x1:x1+size] = frame2
 
