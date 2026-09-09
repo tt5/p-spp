@@ -63,7 +63,7 @@ C/A C C/A
 ```
 
 predators:  
-where energy is possitive and not occupied by prey or queen.  
+where energy is positive and not occupied by prey or queen.  
 nA > nC -> 4  
 nA < nC -> 5  
 tie:  
@@ -71,7 +71,7 @@ nN > 0 -> 5
 else -> 4
 
 prey:  
-where energy is possitive and not occupied by queen.  
+where energy is positive and not occupied by queen.  
 nN >= 3 -> 3   
 else -> 2
 
