@@ -15,8 +15,8 @@ np.set_printoptions(linewidth=np.inf)
 writer = imageio.get_writer('new_video.mp4', fps=60, macro_block_size=1)
 def do_add( spile, tumbled ):
     """ Updates spile in place """
-    spile[ :-1, :] += tumbled[ 1:, :] # Shift N and add                 
-    spile[ 1:, :] += tumbled[ :-1, :] # Shift S   
+    spile[ :-1, :] += tumbled[ 1:, :] # Shift N and add
+    spile[ 1:, :] += tumbled[ :-1, :] # Shift S
     spile[ :, :-1] += tumbled[ :, 1:] # Shift W
     spile[ :, 1:] += tumbled[ :, :-1] # Shift E
 
@@ -319,9 +319,6 @@ def birthAC_njit(C, AC, size):
 
 
 size = 192
-#size = 1024
-#size = 640
-#size = 512
 
 C1 = np.zeros((size,size), dtype='int')
 ND1 = np.zeros((size,size), dtype='int')
@@ -338,6 +335,22 @@ AC3 = np.zeros((size,size), dtype='int')
 C4 = np.zeros((size,size), dtype='int')
 ND4 = np.zeros((size,size), dtype='int')
 AC4 = np.zeros((size,size), dtype='int')
+
+C5 = np.zeros((size,size), dtype='int')
+ND5 = np.zeros((size,size), dtype='int')
+AC5 = np.zeros((size,size), dtype='int')
+
+C6 = np.zeros((size,size), dtype='int')
+ND6 = np.zeros((size,size), dtype='int')
+AC6 = np.zeros((size,size), dtype='int')
+
+C7 = np.zeros((size,size), dtype='int')
+ND7 = np.zeros((size,size), dtype='int')
+AC7 = np.zeros((size,size), dtype='int')
+
+C8 = np.zeros((size,size), dtype='int')
+ND8 = np.zeros((size,size), dtype='int')
+AC8 = np.zeros((size,size), dtype='int')
 
 # 1 queen
 # 2 N
@@ -358,13 +371,15 @@ cAC = 1.0
 cCC = 1.0
 
 # initial conditions
-#bsize = 256
-#C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 2
 bsize = 4
 C1[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
 C2[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
 C3[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
 C4[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
+C5[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
+C6[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
+C7[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
+C8[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
 
 C1[0, 0] = 4
 C1[0, size-1] = 4
@@ -386,6 +401,26 @@ C4[0, size-1] = 4
 C4[size-1, 0] = 4
 C4[size-1, size-1] = 4
 
+C5[0, 0] = 4
+C5[0, size-1] = 4
+C5[size-1, 0] = 4
+C5[size-1, size-1] = 4
+
+C6[0, 0] = 4
+C6[0, size-1] = 4
+C6[size-1, 0] = 4
+C6[size-1, size-1] = 4
+
+C7[0, 0] = 4
+C7[0, size-1] = 4
+C7[size-1, 0] = 4
+C7[size-1, size-1] = 4
+
+C8[0, 0] = 4
+C8[0, size-1] = 4
+C8[size-1, 0] = 4
+C8[size-1, size-1] = 4
+
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
 for tick in range(1000):
@@ -398,6 +433,14 @@ for tick in range(1000):
     remove_queens_njit(C3, ND3, size)
     promote_queens_njit(C4, AC4, ND4, size)
     remove_queens_njit(C4, ND4, size)
+    promote_queens_njit(C5, AC5, ND5, size)
+    remove_queens_njit(C5, ND5, size)
+    promote_queens_njit(C6, AC6, ND6, size)
+    remove_queens_njit(C6, ND6, size)
+    promote_queens_njit(C7, AC7, ND7, size)
+    remove_queens_njit(C7, ND7, size)
+    promote_queens_njit(C8, AC8, ND8, size)
+    remove_queens_njit(C8, ND8, size)
 
     birthAC_njit(C1, AC1, size)
     birthND_njit(C1, ND1, size)
@@ -407,6 +450,14 @@ for tick in range(1000):
     birthND_njit(C3, ND3, size)
     birthAC_njit(C4, AC4, size)
     birthND_njit(C4, ND4, size)
+    birthAC_njit(C5, AC5, size)
+    birthND_njit(C5, ND5, size)
+    birthAC_njit(C6, AC6, size)
+    birthND_njit(C6, ND6, size)
+    birthAC_njit(C7, AC7, size)
+    birthND_njit(C7, ND7, size)
+    birthAC_njit(C8, AC8, size)
+    birthND_njit(C8, ND8, size)
     eatC_njit(C1, ND1, size, a0, alpha1, gamma, cAC, cCC)
     eatA_njit(C1, ND1, AC1, size, a0, alpha1, cAA, cAC)
     eatC_njit(C2, ND2, size, a0, alpha2, gamma, cAC, cCC)
@@ -415,12 +466,24 @@ for tick in range(1000):
     eatA_njit(C3, ND3, AC3, size, a0, alpha3, cAA, cAC)
     eatC_njit(C4, ND4, size, a0, alpha4, gamma, cAC, cCC)
     eatA_njit(C4, ND4, AC4, size, a0, alpha4, cAA, cAC)
+    eatC_njit(C5, ND5, size, a0, alpha1, gamma, cAC, cCC)
+    eatA_njit(C5, ND5, AC5, size, a0, alpha1, cAA, cAC)
+    eatC_njit(C6, ND6, size, a0, alpha2, gamma, cAC, cCC)
+    eatA_njit(C6, ND6, AC6, size, a0, alpha2, cAA, cAC)
+    eatC_njit(C7, ND7, size, a0, alpha3, gamma, cAC, cCC)
+    eatA_njit(C7, ND7, AC7, size, a0, alpha3, cAA, cAC)
+    eatC_njit(C8, ND8, size, a0, alpha4, gamma, cAC, cCC)
+    eatA_njit(C8, ND8, AC8, size, a0, alpha4, cAA, cAC)
 
     qenergy = 4
     add_queen_energy_njit(C1, ND1, AC1, size, qenergy)
     add_queen_energy_njit(C2, ND2, AC2, size, qenergy)
     add_queen_energy_njit(C3, ND3, AC3, size, qenergy)
     add_queen_energy_njit(C4, ND4, AC4, size, qenergy)
+    add_queen_energy_njit(C5, ND5, AC5, size, qenergy)
+    add_queen_energy_njit(C6, ND6, AC6, size, qenergy)
+    add_queen_energy_njit(C7, ND7, AC7, size, qenergy)
+    add_queen_energy_njit(C8, ND8, AC8, size, qenergy)
 
     maxclip = 3 + qenergy
     
@@ -428,11 +491,19 @@ for tick in range(1000):
     ND2 = np.clip(ND2 - ((C2 != 2) & (C2 != 3)) * maxclip, 0, maxclip)
     ND3 = np.clip(ND3 - ((C3 != 2) & (C3 != 3)) * maxclip, 0, maxclip)
     ND4 = np.clip(ND4 - ((C4 != 2) & (C4 != 3)) * maxclip, 0, maxclip)
+    ND5 = np.clip(ND5 - ((C5 != 2) & (C5 != 3)) * maxclip, 0, maxclip)
+    ND6 = np.clip(ND6 - ((C6 != 2) & (C6 != 3)) * maxclip, 0, maxclip)
+    ND7 = np.clip(ND7 - ((C7 != 2) & (C7 != 3)) * maxclip, 0, maxclip)
+    ND8 = np.clip(ND8 - ((C8 != 2) & (C8 != 3)) * maxclip, 0, maxclip)
     if tick%1==0:
         AC1 = AC1 + 1 - ((C1 != 4) & (C1 != 5)) * 1
         AC2 = AC2 + 1 - ((C2 != 4) & (C2 != 5)) * 1
         AC3 = AC3 + 1 - ((C3 != 4) & (C3 != 5)) * 1
         AC4 = AC4 + 1 - ((C4 != 4) & (C4 != 5)) * 1
+        AC5 = AC5 + 1 - ((C5 != 4) & (C5 != 5)) * 1
+        AC6 = AC6 + 1 - ((C6 != 4) & (C6 != 5)) * 1
+        AC7 = AC7 + 1 - ((C7 != 4) & (C7 != 5)) * 1
+        AC8 = AC8 + 1 - ((C8 != 4) & (C8 != 5)) * 1
 
     ss = random.choice([64])
 
@@ -451,20 +522,27 @@ for tick in range(1000):
     tumble_tiles_parallel_njit(AC3, size, ss, off_y, off_x)
     tumble_tiles_parallel_njit(ND4, size, ss, off_y, off_x)
     tumble_tiles_parallel_njit(AC4, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND5, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(AC5, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND6, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(AC6, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND7, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(AC7, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND8, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(AC8, size, ss, off_y, off_x)
 
     if tick>0:
         framecount += 1
 
-        out = np.zeros((1080, 1920, 3), dtype='int')
+        out = np.zeros((2160, 1920, 3), dtype='int')
 
         panel_w = size
-        total_w = panel_w * 4
-        gap = (1920 - total_w) // 5
-        y0 = (1080 - size) // 2
-        x0 = gap
-        x1 = gap + panel_w + gap
-        x2 = gap + panel_w * 2 + gap * 2
-        x3 = gap + panel_w * 3 + gap * 3
+        panel_h = size
+        gap_x = (1920 - panel_w * 4) // 5
+        gap_y = (2160 - panel_h * 2) // 3
+
+        x = [gap_x, gap_x + panel_w + gap_x, gap_x + (panel_w + gap_x) * 2, gap_x + (panel_w + gap_x) * 3]
+        y = [gap_y, gap_y + panel_h + gap_y]
 
         # species palette (R, G, B)
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
@@ -473,63 +551,29 @@ for tick in range(1000):
         COL_A = np.array([255, 150, 70], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
-        # --- Panel 1 (alpha=1.0) ---
-        e = np.clip(ND1 * 10, 0, 255).astype('int')
-        frame1 = np.zeros((size, size, 3), dtype='int')
-        frame1[:, :, 0] = (e // 4).astype('int')
-        frame1[:, :, 1] = (e // 2).astype('int')
-        frame1[:, :, 2] = e.astype('int')
-        for mask, col in [(C1 == 1, COL_Q), (C1 == 2, COL_N),
-                          (C1 == 3, COL_D), (C1 == 4, COL_A),
-                          (C1 == 5, COL_C)]:
-            frame1[mask] = np.clip(frame1[mask] * 0.3 + col * 0.7, 0, 255)
-        frame1 = np.clip(frame1, 0, 255)
-        out[y0:y0+size, x0:x0+size] = frame1
+        panels = [(C1, ND1, 1.0), (C2, ND2, 1.1), (C3, ND3, 1.3), (C4, ND4, 1.7),
+                  (C5, ND5, 1.0), (C6, ND6, 1.1), (C7, ND7, 1.3), (C8, ND8, 1.7)]
 
-        # --- Panel 2 (alpha=1.1) ---
-        e = np.clip(ND2 * 10, 0, 255).astype('int')
-        frame2 = np.zeros((size, size, 3), dtype='int')
-        frame2[:, :, 0] = (e // 4).astype('int')
-        frame2[:, :, 1] = (e // 2).astype('int')
-        frame2[:, :, 2] = e.astype('int')
-        for mask, col in [(C2 == 1, COL_Q), (C2 == 2, COL_N),
-                          (C2 == 3, COL_D), (C2 == 4, COL_A),
-                          (C2 == 5, COL_C)]:
-            frame2[mask] = np.clip(frame2[mask] * 0.3 + col * 0.7, 0, 255)
-        frame2 = np.clip(frame2, 0, 255)
-        out[y0:y0+size, x1:x1+size] = frame2
-
-        # --- Panel 3 (alpha=1.3) ---
-        e = np.clip(ND3 * 10, 0, 255).astype('int')
-        frame3 = np.zeros((size, size, 3), dtype='int')
-        frame3[:, :, 0] = (e // 4).astype('int')
-        frame3[:, :, 1] = (e // 2).astype('int')
-        frame3[:, :, 2] = e.astype('int')
-        for mask, col in [(C3 == 1, COL_Q), (C3 == 2, COL_N),
-                          (C3 == 3, COL_D), (C3 == 4, COL_A),
-                          (C3 == 5, COL_C)]:
-            frame3[mask] = np.clip(frame3[mask] * 0.3 + col * 0.7, 0, 255)
-        frame3 = np.clip(frame3, 0, 255)
-        out[y0:y0+size, x2:x2+size] = frame3
-
-        # --- Panel 4 (alpha=1.7) ---
-        e = np.clip(ND4 * 10, 0, 255).astype('int')
-        frame4 = np.zeros((size, size, 3), dtype='int')
-        frame4[:, :, 0] = (e // 4).astype('int')
-        frame4[:, :, 1] = (e // 2).astype('int')
-        frame4[:, :, 2] = e.astype('int')
-        for mask, col in [(C4 == 1, COL_Q), (C4 == 2, COL_N),
-                          (C4 == 3, COL_D), (C4 == 4, COL_A),
-                          (C4 == 5, COL_C)]:
-            frame4[mask] = np.clip(frame4[mask] * 0.3 + col * 0.7, 0, 255)
-        frame4 = np.clip(frame4, 0, 255)
-        out[y0:y0+size, x3:x3+size] = frame4
+        for idx, (Cg, NDg, alpha) in enumerate(panels):
+            row = idx // 4
+            col = idx % 4
+            e = np.clip(NDg * 10, 0, 255).astype('int')
+            frame = np.zeros((size, size, 3), dtype='int')
+            frame[:, :, 0] = (e // 4).astype('int')
+            frame[:, :, 1] = (e // 2).astype('int')
+            frame[:, :, 2] = e.astype('int')
+            for mask, colv in [(Cg == 1, COL_Q), (Cg == 2, COL_N),
+                               (Cg == 3, COL_D), (Cg == 4, COL_A),
+                               (Cg == 5, COL_C)]:
+                frame[mask] = np.clip(frame[mask] * 0.3 + colv * 0.7, 0, 255)
+            frame = np.clip(frame, 0, 255)
+            out[y[row]:y[row]+size, x[col]:x[col]+size] = frame
 
         nN = np.sum(C1 == 2)
         nD = np.sum(C1 == 3)
         nA = np.sum(C1 == 4)
         nC = np.sum(C1 == 5)
-        print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
+        print(framecount, ",", nN, ",", nD, ",", nA, ",", nC)
 
         writer.append_data(np.array(out, dtype=np.uint8))
 
