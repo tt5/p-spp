@@ -321,10 +321,7 @@ def compute_param_grids(nodes, size, k=2):
     return avg_params.reshape(size, size, 6)
 
 
-size = 192
-#size = 1024
-#size = 640
-#size = 512
+size = 256
 
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
@@ -379,16 +376,15 @@ for tick in range(500):
     eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
     eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
-    ## Example: add a new node mid-simulation at tick 100
-    #if tick == 100:
-    #    nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
-    #    param_grid = compute_param_grids(nodes, size, k=k_nearest)
-    #    a0_grid = param_grid[:, :, 0].copy()
-    #    alpha_grid = param_grid[:, :, 1].copy()
-    #    gamma_grid = param_grid[:, :, 2].copy()
-    #    cAA_grid = param_grid[:, :, 3].copy()
-    #    cAC_grid = param_grid[:, :, 4].copy()
-    #    cCC_grid = param_grid[:, :, 5].copy()
+    if tick == 100:
+        nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
 
     qenergy = 4
     add_queen_energy_njit(C, ND, AC, size, qenergy)
