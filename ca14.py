@@ -155,7 +155,7 @@ def _count_neighbors8(north, south, east, west, northeast, northwest, southeast,
     return nD, nA, nC
 
 @njit
-def eatA_njit(C, ND, AC, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
+def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
     """Per-cell eatA: pkill computed from spatial parameter grids."""
     ys, xs = np.where(C == 4)
     deltas = ((-1,0),(1,0),(0,1),(0,-1),(-1,1),(-1,-1),(1,1),(1,-1))
@@ -174,13 +174,14 @@ def eatA_njit(C, ND, AC, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
         nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
         denomA = 1 + cAA_grid[y,x]*nA + cAC_grid[y,x]*nC
         pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
-        if pkill < 0.5:
-            continue
         killed = False
         isPkill = True
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
             if j == 2:
+                if pkill < 0.5:
+                    isPkill = False
+                    break
                 dy, dx = deltas[i]
                 ny = y + dy
                 nx = x + dx
@@ -193,7 +194,6 @@ def eatA_njit(C, ND, AC, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
             if j == 3:
                 if killed == True:
                     break
-                pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
                 if pkill < 0.5:
                     isPkill = False
                     break
@@ -213,7 +213,7 @@ def eatA_njit(C, ND, AC, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
                 break
 
 @njit
-def eatC_njit(C, ND, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
+def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
     """Per-cell eatC: pkill computed from spatial parameter grids."""
     ys, xs = np.where(C == 5)
     deltas = ((-1,0),(1,0),(0,1),(0,-1),(-1,1),(-1,-1),(1,1),(1,-1))
@@ -230,14 +230,14 @@ def eatC_njit(C, ND, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
         if y<size-1 and x<size-1: southeast = C[y+1,x+1]
         if y<size-1 and x>0: southwest = C[y+1,x-1]
         nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
-        denomC = 1 + cCC_grid[y,x] - gamma_grid[y,x]*nC + cAC_grid[y,x]*nA
-        denomC = max(denomC, 1e-6)
-        pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomC, 1))
-        if pkill < 0.5:
-            continue
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
             if j == 2:
+                denomC = 1 + cCC_grid[y,x] - gamma_grid[y,x]*nC + cAC_grid[y,x]*nA
+                denomC = max(denomC, 1e-6)
+                pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomC, 1))
+                if pkill < 0.5:
+                    break
                 dy, dx = deltas[i]
                 ny = y + dy
                 nx = x + dx
@@ -376,8 +376,8 @@ for tick in range(500):
 
     birthAC_njit(C, AC, size)
     birthND_njit(C, ND, size)
-    eatC_njit(C, ND, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
-    eatA_njit(C, ND, AC, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
+    eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
+    eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
     ## Example: add a new node mid-simulation at tick 100
     #if tick == 100:
