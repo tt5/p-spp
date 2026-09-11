@@ -321,7 +321,7 @@ def compute_param_grids(nodes, size, k=2):
     return avg_params.reshape(size, size, 6)
 
 
-size = 256
+size = 576
 
 VIEW_SIZE = 192
 VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global grid
@@ -346,12 +346,12 @@ nodes = [
 ]
 
 # Initial conditions
-bsize = 4
+bsize = size//4
 C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
-C[0, 0:size-1] = 4
-C[0:size-1, 0] = 4
-C[size-1, 0:size-1] = 4
-C[0:size-1, size-1] = 4
+C[0:2, 0:-1] = 4
+C[0:-1, 0:2] = 4
+C[-2:-1, 0:-1] = 4
+C[0:-1, -2:-1] = 4
 
 k_nearest = 2
 
@@ -369,16 +369,18 @@ cCC_grid = param_grid[:, :, 5].copy()
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(500):
+for tick in range(3000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
 
-    # ---- extract 192x192 view from global 256x256 grids ----
-    vy0 = VIEW_ORIGIN
-    vy1 = VIEW_ORIGIN + VIEW_SIZE
-    vx0 = VIEW_ORIGIN
-    vx1 = VIEW_ORIGIN + VIEW_SIZE
+    # ---- extract view from global grids ----
+    #view_origin_tick = VIEW_ORIGIN + (tick//4)%(size-VIEW_SIZE)
+    view_origin_tick = VIEW_ORIGIN + ((tick//(size - VIEW_SIZE))%5)*(VIEW_SIZE//2)
+    vy0 = view_origin_tick
+    vy1 = view_origin_tick + VIEW_SIZE
+    vx0 = (tick//1)%(size - VIEW_SIZE)
+    vx1 = (tick//1)%(size - VIEW_SIZE) + VIEW_SIZE
     C_view   = C[vy0:vy1, vx0:vx1].copy()
     ND_view  = ND[vy0:vy1, vx0:vx1].copy()
     AC_view  = AC[vy0:vy1, vx0:vx1].copy()
@@ -389,7 +391,7 @@ for tick in range(500):
     cAC_view   = cAC_grid[vy0:vy1, vx0:vx1].copy()
     cCC_view   = cCC_grid[vy0:vy1, vx0:vx1].copy()
 
-    # ---- dynamics on the view (runs at VIEW_SIZE=192) ----
+    # ---- dynamics on the view (runs at VIEW_SIZE) ----
     promote_queens_njit(C_view, AC_view, ND_view, VIEW_SIZE)
     remove_queens_njit(C_view, ND_view, VIEW_SIZE)
 
@@ -398,15 +400,15 @@ for tick in range(500):
     eatC_njit(C_view, VIEW_SIZE, a0_view, alpha_view, gamma_view, cAC_view, cCC_view)
     eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
 
-    if tick == 100:
-        nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+    #if tick == 100:
+    #    nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
+    #    param_grid = compute_param_grids(nodes, size, k=k_nearest)
+    #    a0_grid = param_grid[:, :, 0].copy()
+    #    alpha_grid = param_grid[:, :, 1].copy()
+    #    gamma_grid = param_grid[:, :, 2].copy()
+    #    cAA_grid = param_grid[:, :, 3].copy()
+    #    cAC_grid = param_grid[:, :, 4].copy()
+    #    cCC_grid = param_grid[:, :, 5].copy()
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -433,7 +435,7 @@ for tick in range(500):
     ND[vy0:vy1, vx0:vx1] = ND_view
     AC[vy0:vy1, vx0:vx1] = AC_view
 
-    if tick > 0:
+    if tick%1==0:
         framecount += 1
 
         out = np.zeros((1080, 1920, 3), dtype='int')
@@ -480,11 +482,12 @@ for tick in range(500):
         
         frame = out
 
-        nN = np.sum(C == 2)
-        nD = np.sum(C == 3)
-        nA = np.sum(C == 4)
-        nC = np.sum(C == 5)
-        print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
+        #nN = np.sum(C == 2)
+        #nD = np.sum(C == 3)
+        #nA = np.sum(C == 4)
+        #nC = np.sum(C == 5)
+        #print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
+        print(framecount, view_origin_tick)
         
         writer.append_data(np.array(frame, dtype=np.uint8))
 
