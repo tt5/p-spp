@@ -323,6 +323,9 @@ def compute_param_grids(nodes, size, k=2):
 
 size = 256
 
+VIEW_SIZE = 192
+VIEW_ORIGIN = 31  # top-left corner of the 192x192 view within the 256x256 global grid
+
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
 AC = np.zeros((size,size), dtype='int')
@@ -367,14 +370,33 @@ cCC_grid = param_grid[:, :, 5].copy()
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
 for tick in range(500):
+    # ---- snapshot for rendering (global, before view extraction) ----
+    nd_pre = ND.copy()
+    ac_pre = AC.copy()
 
-    promote_queens_njit(C, AC, ND, size)
-    remove_queens_njit(C, ND, size)
+    # ---- extract 192x192 view from global 256x256 grids ----
+    vy0 = VIEW_ORIGIN
+    vy1 = VIEW_ORIGIN + VIEW_SIZE
+    vx0 = VIEW_ORIGIN
+    vx1 = VIEW_ORIGIN + VIEW_SIZE
+    C_view   = C[vy0:vy1, vx0:vx1].copy()
+    ND_view  = ND[vy0:vy1, vx0:vx1].copy()
+    AC_view  = AC[vy0:vy1, vx0:vx1].copy()
+    a0_view    = a0_grid[vy0:vy1, vx0:vx1].copy()
+    alpha_view = alpha_grid[vy0:vy1, vx0:vx1].copy()
+    gamma_view = gamma_grid[vy0:vy1, vx0:vx1].copy()
+    cAA_view   = cAA_grid[vy0:vy1, vx0:vx1].copy()
+    cAC_view   = cAC_grid[vy0:vy1, vx0:vx1].copy()
+    cCC_view   = cCC_grid[vy0:vy1, vx0:vx1].copy()
 
-    birthAC_njit(C, AC, size)
-    birthND_njit(C, ND, size)
-    eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
-    eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
+    # ---- dynamics on the view (runs at VIEW_SIZE=192) ----
+    promote_queens_njit(C_view, AC_view, ND_view, VIEW_SIZE)
+    remove_queens_njit(C_view, ND_view, VIEW_SIZE)
+
+    birthAC_njit(C_view, AC_view, VIEW_SIZE)
+    birthND_njit(C_view, ND_view, VIEW_SIZE)
+    eatC_njit(C_view, VIEW_SIZE, a0_view, alpha_view, gamma_view, cAC_view, cCC_view)
+    eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
 
     if tick == 100:
         nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
@@ -387,30 +409,31 @@ for tick in range(500):
         cCC_grid = param_grid[:, :, 5].copy()
 
     qenergy = 4
-    add_queen_energy_njit(C, ND, AC, size, qenergy)
+    add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
 
     maxclip = 3 + qenergy
-    
-    ND = np.clip(ND - ((C != 2) & (C != 3)) * maxclip, 0, maxclip)
-    if tick%1==0:
-        AC = AC + 1 - ((C != 4) & (C != 5)) * 1
 
-    nd_pre = ND.copy()
-    ac_pre = AC.copy()
+    ND_view = np.clip(ND_view - ((C_view != 2) & (C_view != 3)) * maxclip, 0, maxclip)
+    AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
 
     ss = random.choice([64])
 
-    if tick%2==0:
+    if tick % 2 == 0:
         off_y = 0
         off_x = 0
     else:
-        off_y = ss//2
-        off_x = ss//2
+        off_y = ss // 2
+        off_x = ss // 2
 
-    tumble_tiles_parallel_njit(ND, size, ss, off_y, off_x)
-    tumble_tiles_parallel_njit(AC, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND_view, VIEW_SIZE, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
 
-    if tick>0:
+    # ---- write view back into global grids ----
+    C[vy0:vy1, vx0:vx1]  = C_view
+    ND[vy0:vy1, vx0:vx1] = ND_view
+    AC[vy0:vy1, vx0:vx1] = AC_view
+
+    if tick > 0:
         framecount += 1
 
         out = np.zeros((1080, 1920, 3), dtype='int')
