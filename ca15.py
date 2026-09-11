@@ -321,9 +321,9 @@ def compute_param_grids(nodes, size, k=2):
     return avg_params.reshape(size, size, 6)
 
 
-size = 576
-
 VIEW_SIZE = 192
+size = VIEW_SIZE*10
+
 VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global grid
 
 C = np.zeros((size,size), dtype='int')
@@ -369,18 +369,20 @@ cCC_grid = param_grid[:, :, 5].copy()
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(3000):
+for tick in range(500):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
 
     # ---- extract view from global grids ----
     #view_origin_tick = VIEW_ORIGIN + (tick//4)%(size-VIEW_SIZE)
-    view_origin_tick = VIEW_ORIGIN + ((tick//(size - VIEW_SIZE))%5)*(VIEW_SIZE//2)
+    #halfsteps = size//VIEW_SIZE + (size//VIEW_SIZE - 1)
+    halfsteps = 3
+    view_origin_tick = VIEW_ORIGIN + ((tick//halfsteps)%halfsteps)*(VIEW_SIZE//2)
     vy0 = view_origin_tick
     vy1 = view_origin_tick + VIEW_SIZE
-    vx0 = (tick//1)%(size - VIEW_SIZE)
-    vx1 = (tick//1)%(size - VIEW_SIZE) + VIEW_SIZE
+    vx0 = (tick%halfsteps)*(VIEW_SIZE//2)
+    vx1 = vx0 + VIEW_SIZE
     C_view   = C[vy0:vy1, vx0:vx1].copy()
     ND_view  = ND[vy0:vy1, vx0:vx1].copy()
     AC_view  = AC[vy0:vy1, vx0:vx1].copy()
@@ -435,15 +437,15 @@ for tick in range(3000):
     ND[vy0:vy1, vx0:vx1] = ND_view
     AC[vy0:vy1, vx0:vx1] = AC_view
 
-    if tick%1==0:
+    if tick%(halfsteps*halfsteps)==0:
         framecount += 1
 
         out = np.zeros((1080, 1920, 3), dtype='int')
         
         panel_w = size
         total_w = panel_w * 1
-        gap = max((1920 - total_w) // 4, 0)
-        y0 = (1080 - size) // 2
+        gap = 0
+        y0 = 0
         x0 = gap
         x1 = gap + panel_w
         x2 = gap + panel_w * 2
@@ -461,7 +463,7 @@ for tick in range(3000):
         # species palette (R, G, B)
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_N = np.array([80, 210, 255], dtype='int')    # cyan
-        COL_D = np.array([55, 115, 255], dtype='int')    # blue
+        COL_D = np.array([0, 0, 0], dtype='int')
         COL_A = np.array([255, 150, 70], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
@@ -482,12 +484,11 @@ for tick in range(3000):
         
         frame = out
 
-        #nN = np.sum(C == 2)
-        #nD = np.sum(C == 3)
-        #nA = np.sum(C == 4)
-        #nC = np.sum(C == 5)
-        #print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
-        print(framecount, view_origin_tick)
+        nN = np.sum(C == 2)
+        nD = np.sum(C == 3)
+        nA = np.sum(C == 4)
+        nC = np.sum(C == 5)
+        print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
         
         writer.append_data(np.array(frame, dtype=np.uint8))
 
