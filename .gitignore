@@ -1,5 +1,6 @@
 **/*.mp4
 **/*.wav
 **/*.png
+**/*.txt
 Untitled.ipynb
 .ipynb_checkpoints/

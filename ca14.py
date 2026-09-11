@@ -324,7 +324,7 @@ def compute_param_grids(nodes, size, k=2):
 size = 256
 
 VIEW_SIZE = 192
-VIEW_ORIGIN = 31  # top-left corner of the 192x192 view within the 256x256 global grid
+VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global grid
 
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
