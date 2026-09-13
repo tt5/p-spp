@@ -451,9 +451,13 @@ for tick in range(160000):
         cCC_grid = param_grid[:, :, 5].copy()
 
     # ---- chip-firing dynamics on the parameter graph ----
-    # Fire a random node each tick (lending move). All nodes start at 0 chips.
-    _v = str(random.choice(list(cf_graph.vertices)))
-    cf_divisor.lending_move(_v)
+    # Fire every node that sits on a defector cell (C == 3).
+    for v in cf_graph.vertices:
+        nid = int(str(v))
+        nx_node = nodes.nodes[nid]
+        x, y = int(nx_node['x']), int(nx_node['y'])
+        if 0 <= y < size and 0 <= x < size and C[y, x] == 3:
+            cf_divisor.lending_move(str(v))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
