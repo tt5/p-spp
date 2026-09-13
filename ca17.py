@@ -5,9 +5,57 @@ import random
 import subprocess
 import ffmpeg
 from numba import njit, prange
+import chipfiring as cf
+
+import networkx as nx
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
+
+# ---------------------------------------------------------------
+# Parameter graph (networkx) + chip-firing layer (chipfiring)
+# Nothing is coupled to the grid yet — this is a standalone skeleton.
+# ---------------------------------------------------------------
+# Fully connected graph, 4 corner nodes, 0 chips each.
+# Vertices named by their grid position so we can re-use them later.
+_NODE_NAMES = ["corner_00", "corner_s0", "corner_0s", "corner_ss"]
+
+_P_GRAPH = nx.complete_graph(_NODE_NAMES)
+
+_CF_GRAPH = cf.CFGraph(
+    set(_NODE_NAMES),
+    [(a, b, 1) for a, b in _P_GRAPH.edges()],
+)
+
+# Initial divisor: 0 chips on every node
+_CF_DIVISOR = cf.CFDivisor(_CF_GRAPH, [(name, 0) for name in _NODE_NAMES])
+
+
+def _p_graph_chips():
+    """Chips on the current divisor, as {name: int}."""
+    return {name: _CF_DIVISOR.get_degree(name) for name in _NODE_NAMES}
+
+
+def firing_step():
+    """One round of chip-firing: every unstable node fires once, in arbitrary order.
+
+    A node is unstable when chips[v] >= degree(v).
+    Each firing: v loses deg(v) chips, every neighbor gains 1 chip per edge (here 1 edge each).
+    """
+    deg = {name: _CF_GRAPH.get_valence(name) for name in _NODE_NAMES}
+    fired = []
+    for name in _NODE_NAMES:
+        if _CF_DIVISOR.get_degree(name) >= deg[name]:
+            _CF_DIVISOR.firing_move(name)
+            fired.append(name)
+    return fired
+
+
+def add_chips(name, k):
+    """Deposit k chips on a named node (borrowing = inverse of lending/firing)."""
+    for _ in range(k):
+        _CF_DIVISOR.borrowing_move(name)
+
 
 VIDEO_W, VIDEO_H = 1920, 1080
 VIDEO_FPS = 60
@@ -31,7 +79,7 @@ def do_add_njit(spile, tumbled):
 
 @njit
 def tumble_njit(spile):
-    for i in range(4):
+    for i in range(8):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -339,7 +387,7 @@ AC = np.zeros((size,size), dtype='int')
 # 5 C
 
 # Parameter graph nodes: [x, y, a0, alpha, gamma, cAA, cAC, cCC]
-# Default: 4 corners
+# Default: 4 corners — kept in sync with _NODE_NAMES / _NODE_PARAMS.
 nodes = [
     [0, 0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0],
     [size-1, 0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -372,7 +420,7 @@ cCC_grid = param_grid[:, :, 5].copy()
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(40000):
+for tick in range(80000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
