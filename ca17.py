@@ -391,20 +391,6 @@ def build_cf_graph_from_nodes(nodes):
             edges.append((str(node_list[i]), str(node_list[j]), 1))
     return CFGraph(vertex_names, edges)
 
-def stabilize(divisor, graph):
-    """Fire any vertex with chips >= its valence until stable. Returns total fires."""
-    fired_total = 0
-    while True:
-        fired_this_pass = False
-        for v in graph.vertices:
-            if divisor.get_degree(v) >= graph.get_valence(v):
-                divisor.lending_move(v)
-                fired_this_pass = True
-                fired_total += 1
-        if not fired_this_pass:
-            break
-    return fired_total
-
 cf_graph = build_cf_graph_from_nodes(nodes)
 cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
@@ -468,7 +454,6 @@ for tick in range(160000):
     # (uncomment the injection below), then stabilize.
     # for v in cf_graph.vertices:
     #     cf_divisor.lending_move(v)  # no-op placeholder: currently disabled
-    _fired = stabilize(cf_divisor, cf_graph)
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
