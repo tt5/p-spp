@@ -1,13 +1,11 @@
-import numpy as np
-import math
 import sys
 import random
-import subprocess
-import ffmpeg
+import math
 from numba import njit, prange
 import chipfiring as cf
-
 import networkx as nx
+import imageio
+import numpy as np
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
@@ -60,26 +58,18 @@ def add_chips(name, k):
 VIDEO_W, VIDEO_H = 1920, 1080
 VIDEO_FPS = 60
 
-ffmpeg_proc = (
-    ffmpeg
-    .input('pipe:', format='rawvideo', pix_fmt='rgb24',
-           r=VIDEO_FPS, s=f'{VIDEO_W}x{VIDEO_H}')
-    .output('new_video.mp4', vcodec='libx264', preset='fast',
-            crf=18, pix_fmt='yuv420p')
-    .overwrite_output()
-    .run_async(pipe_stdin=True, quiet=True)
+video_out_path = "new_video.mp4"
+writer = imageio.get_writer(
+    video_out_path,
+    fps=VIDEO_FPS,
+    codec="libx264",
+    quality=None,
+    pixelformat="yuv420p",
 )
 
 @njit
-def do_add_njit(spile, tumbled):
-    spile[:-1, :] += tumbled[1:, :]
-    spile[1:, :] += tumbled[:-1, :]
-    spile[:, :-1] += tumbled[:, 1:]
-    spile[:, 1:] += tumbled[:, :-1]
-
-@njit
 def tumble_njit(spile):
-    for i in range(8):
+    for i in range(16):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -420,7 +410,7 @@ cCC_grid = param_grid[:, :, 5].copy()
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(80000):
+for tick in range(160000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -539,7 +529,6 @@ for tick in range(80000):
         nC = np.sum(C == 5)
         print(framecount, ",", nN, ",", nD, ",", nA, ",", nC)
 
-        ffmpeg_proc.stdin.write(frame.astype(np.uint8).tobytes())
+        writer.append_data(frame.astype(np.uint8))
 
-ffmpeg_proc.stdin.close()
-ffmpeg_proc.wait()
+writer.close()
