@@ -5,6 +5,7 @@ from numba import njit, prange
 import networkx as nx
 import imageio
 import numpy as np
+from chipfiring import CFGraph, CFDivisor
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
@@ -380,6 +381,33 @@ cCC_grid = param_grid[:, :, 5].copy()
 # Grid can be updated mid-simulation by modifying the nodes list and
 # re-computing param_grid (e.g., nodes.append([...]) then recompute).
 
+# ---- Chip-firing on the parameter graph (via chipfiring library) ----
+def build_cf_graph_from_nodes(nodes):
+    node_list = list(nodes.nodes())
+    vertex_names = set(str(n) for n in node_list)
+    edges = []
+    for i in range(len(node_list)):
+        for j in range(i + 1, len(node_list)):
+            edges.append((str(node_list[i]), str(node_list[j]), 1))
+    return CFGraph(vertex_names, edges)
+
+def stabilize(divisor, graph):
+    """Fire any vertex with chips >= its valence until stable. Returns total fires."""
+    fired_total = 0
+    while True:
+        fired_this_pass = False
+        for v in graph.vertices:
+            if divisor.get_degree(v) >= graph.get_valence(v):
+                divisor.lending_move(v)
+                fired_this_pass = True
+                fired_total += 1
+        if not fired_this_pass:
+            break
+    return fired_total
+
+cf_graph = build_cf_graph_from_nodes(nodes)
+cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
+
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
 for tick in range(160000):
@@ -421,6 +449,12 @@ for tick in range(160000):
         nodes.add_node(new_id, x=size//2, y=size//2,
                        a0=0.7, alpha=1.2, gamma=0.8,
                        cAA=1.5, cAC=1.0, cCC=1.0)
+        # keep chipfiring graph in sync with the new node
+        cf_graph.add_edge(str(new_id), str(0), 1)
+        cf_graph.add_edge(str(new_id), str(1), 1)
+        cf_graph.add_edge(str(new_id), str(2), 1)
+        cf_graph.add_edge(str(new_id), str(3), 1)
+        cf_divisor = CFDivisor(cf_graph, [(str(n), cf_divisor.get_degree(str(n))) for n in nodes.nodes()])
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -428,6 +462,13 @@ for tick in range(160000):
         cAA_grid = param_grid[:, :, 3].copy()
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
+
+    # ---- chip-firing dynamics on the parameter graph ----
+    # All nodes start at 0 chips. To drive activity, add chips per tick
+    # (uncomment the injection below), then stabilize.
+    # for v in cf_graph.vertices:
+    #     cf_divisor.lending_move(v)  # no-op placeholder: currently disabled
+    _fired = stabilize(cf_divisor, cf_graph)
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
