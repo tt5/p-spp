@@ -2,7 +2,6 @@ import sys
 import random
 import math
 from numba import njit, prange
-import chipfiring as cf
 import networkx as nx
 import imageio
 import numpy as np
@@ -10,49 +9,14 @@ import numpy as np
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
 
-# ---------------------------------------------------------------
-# Parameter graph (networkx) + chip-firing layer (chipfiring)
-# Nothing is coupled to the grid yet — this is a standalone skeleton.
-# ---------------------------------------------------------------
-# Fully connected graph, 4 corner nodes, 0 chips each.
-# Vertices named by their grid position so we can re-use them later.
-_NODE_NAMES = ["corner_00", "corner_s0", "corner_0s", "corner_ss"]
+# Global grid size (must be defined before the parameter graph below).
+size = 1920
 
-_P_GRAPH = nx.complete_graph(_NODE_NAMES)
-
-_CF_GRAPH = cf.CFGraph(
-    set(_NODE_NAMES),
-    [(a, b, 1) for a, b in _P_GRAPH.edges()],
-)
-
-# Initial divisor: 0 chips on every node
-_CF_DIVISOR = cf.CFDivisor(_CF_GRAPH, [(name, 0) for name in _NODE_NAMES])
-
-
-def _p_graph_chips():
-    """Chips on the current divisor, as {name: int}."""
-    return {name: _CF_DIVISOR.get_degree(name) for name in _NODE_NAMES}
-
-
-def firing_step():
-    """One round of chip-firing: every unstable node fires once, in arbitrary order.
-
-    A node is unstable when chips[v] >= degree(v).
-    Each firing: v loses deg(v) chips, every neighbor gains 1 chip per edge (here 1 edge each).
-    """
-    deg = {name: _CF_GRAPH.get_valence(name) for name in _NODE_NAMES}
-    fired = []
-    for name in _NODE_NAMES:
-        if _CF_DIVISOR.get_degree(name) >= deg[name]:
-            _CF_DIVISOR.firing_move(name)
-            fired.append(name)
-    return fired
-
-
-def add_chips(name, k):
-    """Deposit k chips on a named node (borrowing = inverse of lending/firing)."""
-    for _ in range(k):
-        _CF_DIVISOR.borrowing_move(name)
+# Parameter graph (networkx): 4 corner nodes, fully connected.
+# Each node carries position + 6 parameters:
+#   x, y, a0, alpha, gamma, cAA, cAC, cCC
+# compute_param_grids reads node attributes to build the per-cell
+# parameter field; a 5th node can be injected mid-run (tick 100).
 
 
 VIDEO_W, VIDEO_H = 1920, 1080
@@ -69,7 +33,7 @@ writer = imageio.get_writer(
 
 @njit
 def tumble_njit(spile):
-    for i in range(16):
+    for i in range(32):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -353,9 +317,9 @@ def compute_param_grids(nodes, size, k=2):
     if len(nodes) == 0:
         return np.zeros((size, size, 6), dtype='float64')
     node_ids = list(nodes.nodes())
-    node_xy = np.array([[nodes[n]['x'], nodes[n]['y']] for n in node_ids], dtype='float64')
-    node_params = np.array([[nodes[n]['a0'], nodes[n]['alpha'], nodes[n]['gamma'],
-                             nodes[n]['cAA'], nodes[n]['cAC'], nodes[n]['cCC']]
+    node_xy = np.array([[nodes.nodes[n]['x'], nodes.nodes[n]['y']] for n in node_ids], dtype='float64')
+    node_params = np.array([[nodes.nodes[n]['a0'], nodes.nodes[n]['alpha'], nodes.nodes[n]['gamma'],
+                             nodes.nodes[n]['cAA'], nodes.nodes[n]['cAC'], nodes.nodes[n]['cCC']]
                             for n in node_ids], dtype='float64')
     cell_coords = np.stack(np.meshgrid(np.arange(size), np.arange(size), indexing='ij'), axis=-1).reshape(-1, 2).astype('float64')
     diffs = cell_coords[:, None, :] - node_xy[None, :, :]
@@ -382,16 +346,12 @@ AC = np.zeros((size,size), dtype='int')
 # 5 C
 
 # Parameter graph nodes: [x, y, a0, alpha, gamma, cAA, cAC, cCC]
-# Default: 4 corners — kept in sync with _NODE_NAMES / _NODE_PARAMS.
-# Parameter graph: fully connected networkx graph.
-# Each node carries its position and 6 parameters:
-#   x, y, a0, alpha, gamma, cAA, cAC, cCC
-# Replaces the flat `nodes` list so topology is explicit.
+# Default: 4 corners.
 
 nodes = nx.complete_graph(4)
 
 for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)]):
-    nodes[i].update({
+    nodes.nodes[i].update({
         'x': x, 'y': y,
         'a0': 0.5, 'alpha': 1.0, 'gamma': 1.0,
         'cAA': 1.0, 'cAC': 1.0, 'cCC': 1.0,
