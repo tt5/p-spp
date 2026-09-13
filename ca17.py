@@ -2,29 +2,25 @@ import numpy as np
 import math
 import sys
 import random
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
-import imageio
-import time
+import subprocess
+import ffmpeg
 from numba import njit, prange
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
 
-writer = imageio.get_writer('new_video.mp4', fps=60, macro_block_size=1)
-def do_add( spile, tumbled ):
-    """ Updates spile in place """
-    spile[ :-1, :] += tumbled[ 1:, :] # Shift N and add                 
-    spile[ 1:, :] += tumbled[ :-1, :] # Shift S   
-    spile[ :, :-1] += tumbled[ :, 1:] # Shift W
-    spile[ :, 1:] += tumbled[ :, :-1] # Shift E
+VIDEO_W, VIDEO_H = 1920, 1080
+VIDEO_FPS = 60
 
-def tumble( spile ):
-    while ( spile > 3 ).any():
-        tumbled, spile = np.divmod( spile, 4 )
-        do_add( spile, tumbled )
-    return spile
+ffmpeg_proc = (
+    ffmpeg
+    .input('pipe:', format='rawvideo', pix_fmt='rgb24',
+           r=VIDEO_FPS, s=f'{VIDEO_W}x{VIDEO_H}')
+    .output('new_video.mp4', vcodec='libx264', preset='fast',
+            crf=18, pix_fmt='yuv420p')
+    .overwrite_output()
+    .run_async(pipe_stdin=True, quiet=True)
+)
 
 @njit
 def do_add_njit(spile, tumbled):
@@ -35,9 +31,15 @@ def do_add_njit(spile, tumbled):
 
 @njit
 def tumble_njit(spile):
-    while (spile > 3).any():
-        tumbled, spile = np.divmod(spile, 4)
-        do_add_njit(spile, tumbled)
+    for i in range(4):
+        if (spile > 3).any():
+            tumbled, spile = np.divmod(spile, 4)
+            spile[:-1, :] += tumbled[1:, :]
+            spile[1:, :] += tumbled[:-1, :]
+            spile[:, :-1] += tumbled[:, 1:]
+            spile[:, 1:] += tumbled[:, :-1]
+        else:
+            break
     return spile
 
 @njit(parallel=True)
@@ -321,8 +323,8 @@ def compute_param_grids(nodes, size, k=2):
     return avg_params.reshape(size, size, 6)
 
 
-VIEW_SIZE = 192
-size = VIEW_SIZE*10
+VIEW_SIZE = 256
+size = 1920
 
 VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global grid
 
@@ -346,8 +348,9 @@ nodes = [
 ]
 
 # Initial conditions
-bsize = size//4
-C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
+#bsize = size//4
+#C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
+C = C+3
 C[0:2, 0:-1] = 4
 C[0:-1, 0:2] = 4
 C[-2:-1, 0:-1] = 4
@@ -369,7 +372,7 @@ cCC_grid = param_grid[:, :, 5].copy()
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(500):
+for tick in range(40000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -377,11 +380,12 @@ for tick in range(500):
     # ---- extract view from global grids ----
     #view_origin_tick = VIEW_ORIGIN + (tick//4)%(size-VIEW_SIZE)
     #halfsteps = size//VIEW_SIZE + (size//VIEW_SIZE - 1)
-    halfsteps = 3
-    view_origin_tick = VIEW_ORIGIN + ((tick//halfsteps)%halfsteps)*(VIEW_SIZE//2)
+    halfsteps_h = 14
+    halfsteps_v = 4+3
+    view_origin_tick = VIEW_ORIGIN + (((tick//2)//halfsteps_h)%halfsteps_v)*(VIEW_SIZE//2)
     vy0 = view_origin_tick
     vy1 = view_origin_tick + VIEW_SIZE
-    vx0 = (tick%halfsteps)*(VIEW_SIZE//2)
+    vx0 = ((tick//2)%halfsteps_h)*(VIEW_SIZE//2)
     vx1 = vx0 + VIEW_SIZE
     C_view   = C[vy0:vy1, vx0:vx1].copy()
     ND_view  = ND[vy0:vy1, vx0:vx1].copy()
@@ -402,15 +406,15 @@ for tick in range(500):
     eatC_njit(C_view, VIEW_SIZE, a0_view, alpha_view, gamma_view, cAC_view, cCC_view)
     eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
 
-    #if tick == 100:
-    #    nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
-    #    param_grid = compute_param_grids(nodes, size, k=k_nearest)
-    #    a0_grid = param_grid[:, :, 0].copy()
-    #    alpha_grid = param_grid[:, :, 1].copy()
-    #    gamma_grid = param_grid[:, :, 2].copy()
-    #    cAA_grid = param_grid[:, :, 3].copy()
-    #    cAC_grid = param_grid[:, :, 4].copy()
-    #    cCC_grid = param_grid[:, :, 5].copy()
+    if tick == 100:
+        nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -420,7 +424,7 @@ for tick in range(500):
     ND_view = np.clip(ND_view - ((C_view != 2) & (C_view != 3)) * maxclip, 0, maxclip)
     AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
 
-    ss = random.choice([64])
+    ss = random.choice([128])
 
     if tick % 2 == 0:
         off_y = 0
@@ -432,55 +436,52 @@ for tick in range(500):
     tumble_tiles_parallel_njit(ND_view, VIEW_SIZE, ss, off_y, off_x)
     tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
 
+    ND_view = np.clip(ND_view, 0, 4)
+    AC_view = np.clip(ND_view, 0, 4)
+
     # ---- write view back into global grids ----
     C[vy0:vy1, vx0:vx1]  = C_view
     ND[vy0:vy1, vx0:vx1] = ND_view
     AC[vy0:vy1, vx0:vx1] = AC_view
 
-    if tick%(halfsteps*halfsteps)==0:
+    if tick%(40)==0:
         framecount += 1
 
         out = np.zeros((1080, 1920, 3), dtype='int')
-        
-        panel_w = size
-        total_w = panel_w * 1
-        gap = 0
-        y0 = 0
-        x0 = gap
-        x1 = gap + panel_w
-        x2 = gap + panel_w * 2
-        
-        # ND panel — species-colored rendering
-        ny, nx = y0, x0
 
-        # subtle energy-field background from ND
-        e = np.clip(ND * 10, 0, 255).astype('int')
-        frame = np.zeros((size, size, 3), dtype='int')
+        # Fixed top-left crop: render the top 1080x1920 of the 1920x1920 global grid
+        CROP_H = 1080
+        CROP_W = 1920
+
+        # ND background from cropped region
+        e = np.clip(ND[:CROP_H, :CROP_W] * 10, 0, 255).astype('int')
+        frame = np.zeros((CROP_H, CROP_W, 3), dtype='int')
         frame[:, :, 0] = (e // 4).astype('int')
         frame[:, :, 1] = (e // 2).astype('int')
         frame[:, :, 2] = e.astype('int')
 
         # species palette (R, G, B)
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
-        COL_N = np.array([80, 210, 255], dtype='int')    # cyan
+        COL_N = np.array([90, 210, 255], dtype='int')
         COL_D = np.array([0, 0, 0], dtype='int')
         COL_A = np.array([255, 150, 70], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         # overlay species colors (bright, mixed over background)
-        for mask, col in [(C == 1, COL_Q), (C == 2, COL_N),
-                          (C == 3, COL_D), (C == 4, COL_A),
-                          (C == 5, COL_C)]:
+        C_crop = C[:CROP_H, :CROP_W]
+        for mask, col in [(C_crop == 1, COL_Q), (C_crop == 2, COL_N),
+                          (C_crop == 3, COL_D), (C_crop == 4, COL_A),
+                          (C_crop == 5, COL_C)]:
             frame[mask] = np.clip(frame[mask] * 0.3 + col * 0.7, 0, 255)
 
         # faint motion trail from previous ND frame (soft)
-        trail = np.clip(nd_pre * 6, 0, 255).astype('int')
+        trail = np.clip(nd_pre[:CROP_H, :CROP_W] * 6, 0, 255).astype('int')
         frame[:, :, 0] = (frame[:, :, 0] * 0.9 + trail * 0.1).astype('int')
         frame[:, :, 1] = (frame[:, :, 1] * 0.9 + trail * 0.1).astype('int')
         frame[:, :, 2] = (frame[:, :, 2] * 0.9 + trail * 0.1).astype('int')
 
         frame = np.clip(frame, 0, 255)
-        out[ny:ny+size, nx:nx+size] = frame
+        out[:, :, :] = frame
         
         frame = out
 
@@ -488,8 +489,9 @@ for tick in range(500):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
-        
-        writer.append_data(np.array(frame, dtype=np.uint8))
+        print(framecount, ",", nN, ",", nD, ",", nA, ",", nC)
 
-writer.close()
+        ffmpeg_proc.stdin.write(frame.astype(np.uint8).tobytes())
+
+ffmpeg_proc.stdin.close()
+ffmpeg_proc.wait()

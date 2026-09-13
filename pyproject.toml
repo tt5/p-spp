@@ -1,0 +1,13 @@
+[project]
+name = "spp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "imageio[pyav]>=2.37.4",
+    "matplotlib>=3.11.2",
+    "networkx>=3.6.1",
+    "numba>=0.67.0",
+    "numpy>=2.4.6",
+]
