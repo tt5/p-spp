@@ -346,12 +346,17 @@ def birthAC_njit(C, AC, size):
 
 
 def compute_param_grids(nodes, size, k=2):
-    """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by averaging k nearest nodes."""
+    """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by averaging k nearest nodes.
+
+    nodes: networkx graph where each node carries x, y, a0, alpha, gamma, cAA, cAC, cCC.
+    """
     if len(nodes) == 0:
         return np.zeros((size, size, 6), dtype='float64')
-    nodes_arr = np.array(nodes, dtype='float64')
-    node_xy = nodes_arr[:, :2]
-    node_params = nodes_arr[:, 2:]
+    node_ids = list(nodes.nodes())
+    node_xy = np.array([[nodes[n]['x'], nodes[n]['y']] for n in node_ids], dtype='float64')
+    node_params = np.array([[nodes[n]['a0'], nodes[n]['alpha'], nodes[n]['gamma'],
+                             nodes[n]['cAA'], nodes[n]['cAC'], nodes[n]['cCC']]
+                            for n in node_ids], dtype='float64')
     cell_coords = np.stack(np.meshgrid(np.arange(size), np.arange(size), indexing='ij'), axis=-1).reshape(-1, 2).astype('float64')
     diffs = cell_coords[:, None, :] - node_xy[None, :, :]
     dists = np.sqrt((diffs ** 2).sum(axis=2))
@@ -378,12 +383,19 @@ AC = np.zeros((size,size), dtype='int')
 
 # Parameter graph nodes: [x, y, a0, alpha, gamma, cAA, cAC, cCC]
 # Default: 4 corners — kept in sync with _NODE_NAMES / _NODE_PARAMS.
-nodes = [
-    [0, 0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0],
-    [size-1, 0, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0],
-    [0, size-1, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0],
-    [size-1, size-1, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0],
-]
+# Parameter graph: fully connected networkx graph.
+# Each node carries its position and 6 parameters:
+#   x, y, a0, alpha, gamma, cAA, cAC, cCC
+# Replaces the flat `nodes` list so topology is explicit.
+
+nodes = nx.complete_graph(4)
+
+for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)]):
+    nodes[i].update({
+        'x': x, 'y': y,
+        'a0': 0.5, 'alpha': 1.0, 'gamma': 1.0,
+        'cAA': 1.0, 'cAC': 1.0, 'cCC': 1.0,
+    })
 
 # Initial conditions
 #bsize = size//4
@@ -445,7 +457,10 @@ for tick in range(160000):
     eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
 
     if tick == 100:
-        nodes.append([size//2, size//2, 0.7, 1.2, 0.8, 1.5, 1.0, 1.0])
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=size//2, y=size//2,
+                       a0=0.7, alpha=1.2, gamma=0.8,
+                       cAA=1.5, cAC=1.0, cCC=1.0)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
