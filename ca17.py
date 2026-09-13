@@ -339,6 +339,7 @@ VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
 AC = np.zeros((size,size), dtype='int')
+last_change = np.full((size, size), -1, dtype=np.int64)
 
 # 1 queen
 # 2 N
@@ -435,12 +436,11 @@ for tick in range(160000):
         nodes.add_node(new_id, x=size//2, y=size//2,
                        a0=0.7, alpha=1.2, gamma=0.8,
                        cAA=1.5, cAC=1.0, cCC=1.0)
-        # keep chipfiring graph in sync with the new node
-        cf_graph.add_edge(str(new_id), str(0), 1)
-        cf_graph.add_edge(str(new_id), str(1), 1)
-        cf_graph.add_edge(str(new_id), str(2), 1)
-        cf_graph.add_edge(str(new_id), str(3), 1)
-        cf_divisor = CFDivisor(cf_graph, [(str(n), cf_divisor.get_degree(str(n))) for n in nodes.nodes()])
+        # keep chipfiring graph in sync with the new node by rebuilding it
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -474,8 +474,8 @@ for tick in range(160000):
     tumble_tiles_parallel_njit(ND_view, VIEW_SIZE, ss, off_y, off_x)
     tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
 
-    ND_view = np.clip(ND_view, 0, 4)
-    AC_view = np.clip(ND_view, 0, 4)
+    ND_view = np.clip(ND_view, 0, 8)
+    AC_view = np.clip(ND_view, 0, 8)
 
     # ---- write view back into global grids ----
     C[vy0:vy1, vx0:vx1]  = C_view
