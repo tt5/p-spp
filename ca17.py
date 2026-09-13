@@ -450,10 +450,9 @@ for tick in range(160000):
         cCC_grid = param_grid[:, :, 5].copy()
 
     # ---- chip-firing dynamics on the parameter graph ----
-    # All nodes start at 0 chips. To drive activity, add chips per tick
-    # (uncomment the injection below), then stabilize.
-    # for v in cf_graph.vertices:
-    #     cf_divisor.lending_move(v)  # no-op placeholder: currently disabled
+    # Fire a random node each tick (lending move). All nodes start at 0 chips.
+    _v = str(random.choice(list(cf_graph.vertices)))
+    cf_divisor.lending_move(_v)
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
