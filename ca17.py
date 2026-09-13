@@ -413,6 +413,7 @@ for tick in range(160000):
     vx0 = ((tick//2)%halfsteps_h)*(VIEW_SIZE//2)
     vx1 = vx0 + VIEW_SIZE
     C_view   = C[vy0:vy1, vx0:vx1].copy()
+    C_view_pre = C_view.copy()
     ND_view  = ND[vy0:vy1, vx0:vx1].copy()
     AC_view  = AC[vy0:vy1, vx0:vx1].copy()
     a0_view    = a0_grid[vy0:vy1, vx0:vx1].copy()
@@ -481,6 +482,21 @@ for tick in range(160000):
     C[vy0:vy1, vx0:vx1]  = C_view
     ND[vy0:vy1, vx0:vx1] = ND_view
     AC[vy0:vy1, vx0:vx1] = AC_view
+
+    # record last_change for cells whose species changed during dynamics
+    changed = (C_view != C_view_pre)
+    last_change[vy0:vy1, vx0:vx1][changed] = tick
+
+    # ---- age-based defector conversion ----
+    # Any cell that has not changed in the last STALE_TICKS ticks becomes a defector (3),
+    # with ND/AC energy zeroed for that cell.
+    STALE_TICKS = 10000
+    stale_mask = last_change <= tick - STALE_TICKS
+    if stale_mask.any():
+        C[stale_mask] = 3
+        ND[stale_mask] = 0
+        AC[stale_mask] = 0
+        last_change[stale_mask] = tick
 
     if tick%(40)==0:
         framecount += 1
