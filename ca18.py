@@ -480,7 +480,9 @@ for tick in range(16000):
                     if other_nid != nid:
                         nodes.add_edge(nid, other_nid)
             elif len(neighbors) > 1:
-                victim = random.choice(neighbors)
+                # delete the edge to the neighbor with the highest chip count
+                victim = max(neighbors,
+                             key=lambda n: cf_divisor.get_degree(str(n)))
                 nodes.remove_edge(nid, victim)
         # rebuild chip-firing graph and recompute parameter grids
         old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
