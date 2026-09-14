@@ -352,7 +352,7 @@ last_change = np.full((size, size), -1, dtype=np.int64)
 
 nodes = nx.complete_graph(4)
 
-for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)]):
+for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size//2), (size-1, size//2)]):
     nodes.nodes[i].update({
         'x': x, 'y': y,
         'a0': 0.5, 'alpha': 1.0, 'gamma': 1.0,
@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(16000):
+for tick in range(1600):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
