@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(4000):
+for tick in range(16000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -433,15 +433,56 @@ for tick in range(4000):
     eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
 
     if tick == 100:
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=size//2, y=size//2,
-                       a0=0.7, alpha=1.2, gamma=0.8,
-                       cAA=1.5, cAC=1.0, cCC=1.0)
-        # connect the new node to all existing nodes so the overlay
-        # (which reads nodes.edges()) matches the chip-firing topology
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        # keep chipfiring graph in sync with the new node by rebuilding it
+        for i in range(4):
+            new_id = len(nodes)
+            nodes.add_node(new_id, x=size//2, y=size//2,
+                           a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                           cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+            for existing in range(new_id):
+                nodes.add_edge(new_id, existing)
+            old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+            cf_graph = build_cf_graph_from_nodes(nodes)
+            new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+            cf_divisor = CFDivisor(cf_graph, new_degrees)
+            param_grid = compute_param_grids(nodes, size, k=k_nearest)
+            a0_grid = param_grid[:, :, 0].copy()
+            alpha_grid = param_grid[:, :, 1].copy()
+            gamma_grid = param_grid[:, :, 2].copy()
+            cAA_grid = param_grid[:, :, 3].copy()
+            cAC_grid = param_grid[:, :, 4].copy()
+            cCC_grid = param_grid[:, :, 5].copy()
+
+
+    # ---- chip-firing dynamics on the parameter graph ----
+    # Fire every node that sits on a defector cell (C == 3), but only if it has
+    # positive chips.
+    for v in cf_graph.vertices:
+        nid = int(str(v))
+        nx_node = nodes.nodes[nid]
+        x, y = int(nx_node['x']), int(nx_node['y'])
+        if 0 <= y < size and 0 <= x < size and C[y, x] == 3 and cf_divisor.get_degree(str(v)) >= 0:
+            cf_divisor.lending_move(str(v))
+
+    # For each non-starting node: delete one random edge; if only one
+    # edge remains, move to the midpoint of that edge and reconnect to all.
+    if tick >= 100 and tick % 50 == 0:
+        for nid in list(nodes.nodes()):
+            if nid < 4:
+                continue
+            neighbors = list(nodes.neighbors(nid))
+            if len(neighbors) == 1:
+                other = neighbors[0]
+                nid_data = nodes.nodes[nid]
+                other_data = nodes.nodes[other]
+                nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
+                nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
+                for other_nid in nodes.nodes():
+                    if other_nid != nid:
+                        nodes.add_edge(nid, other_nid)
+            elif len(neighbors) > 1:
+                victim = random.choice(neighbors)
+                nodes.remove_edge(nid, victim)
+        # rebuild chip-firing graph and recompute parameter grids
         old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
         cf_graph = build_cf_graph_from_nodes(nodes)
         new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
@@ -453,16 +494,6 @@ for tick in range(4000):
         cAA_grid = param_grid[:, :, 3].copy()
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
-
-    # ---- chip-firing dynamics on the parameter graph ----
-    # Fire every node that sits on a defector cell (C == 3), but only if it has
-    # positive chips.
-    for v in cf_graph.vertices:
-        nid = int(str(v))
-        nx_node = nodes.nodes[nid]
-        x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and C[y, x] == 3 and cf_divisor.get_degree(str(v)) >= 0:
-            cf_divisor.lending_move(str(v))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -527,7 +558,7 @@ for tick in range(4000):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([255, 160, 80], dtype='int')    # orange
+        COL_A = np.array([255, 180, 100], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         # overlay species colors (bright, mixed over background)
@@ -547,22 +578,18 @@ for tick in range(4000):
 
         # ---- overlay parameter-graph edges (PIL) ----
         # node (x,y) maps 1:1 to pixel (x,y) in the 1920x1080 crop of the
-        # 1920x1920 global grid.
+        # 1920x1920 global grid. PIL clips lines to the image bounds, so
+        # no manual endpoint clamping is needed.
         try:
             from PIL import Image, ImageDraw
             img = Image.fromarray(frame.astype(np.uint8))
             draw = ImageDraw.Draw(img)
-            EDGE_COLOR = (0, 255, 255)      # bright cyan
-            EDGE_WIDTH = 3
+            EDGE_COLOR = (10, 245, 255)
+            EDGE_WIDTH = 2
             for (u, v) in nodes.edges():
                 xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
                 xv, yv = int(nodes.nodes[v]['x']), int(nodes.nodes[v]['y'])
-                # clip to the crop region so off-screen endpoints still
-                # produce partial in-frame segments instead of being skipped
-                yu = max(0, min(yu, CROP_H - 1))
-                xv = max(0, min(xv, CROP_W - 1))
-                if yu < CROP_H and yu != -1:
-                    draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
+                draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
             frame = np.array(img)
         except Exception as exc:
             print(f"[graph-overlay skipped] {exc}")
