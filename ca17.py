@@ -34,7 +34,7 @@ writer = imageio.get_writer(
 
 @njit
 def tumble_njit(spile):
-    for i in range(32):
+    for i in range(256):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -331,7 +331,7 @@ def compute_param_grids(nodes, size, k=2):
     return avg_params.reshape(size, size, 6)
 
 
-VIEW_SIZE = 256
+VIEW_SIZE = 512
 size = 1920
 
 VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global grid
@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(160000):
+for tick in range(40000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -405,8 +405,8 @@ for tick in range(160000):
     # ---- extract view from global grids ----
     #view_origin_tick = VIEW_ORIGIN + (tick//4)%(size-VIEW_SIZE)
     #halfsteps = size//VIEW_SIZE + (size//VIEW_SIZE - 1)
-    halfsteps_h = 14
-    halfsteps_v = 4+3
+    halfsteps_h = 3+3
+    halfsteps_v = 2+1
     view_origin_tick = VIEW_ORIGIN + (((tick//2)//halfsteps_h)%halfsteps_v)*(VIEW_SIZE//2)
     vy0 = view_origin_tick
     vy1 = view_origin_tick + VIEW_SIZE
@@ -451,12 +451,13 @@ for tick in range(160000):
         cCC_grid = param_grid[:, :, 5].copy()
 
     # ---- chip-firing dynamics on the parameter graph ----
-    # Fire every node that sits on a defector cell (C == 3).
+    # Fire every node that sits on a defector cell (C == 3), but only if it has
+    # positive chips.
     for v in cf_graph.vertices:
         nid = int(str(v))
         nx_node = nodes.nodes[nid]
         x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and C[y, x] == 3:
+        if 0 <= y < size and 0 <= x < size and C[y, x] == 3 and cf_divisor.get_degree(str(v)) >= 0:
             cf_divisor.lending_move(str(v))
 
     qenergy = 4
@@ -467,7 +468,7 @@ for tick in range(160000):
     ND_view = np.clip(ND_view - ((C_view != 2) & (C_view != 3)) * maxclip, 0, maxclip)
     AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
 
-    ss = random.choice([128])
+    ss = random.choice([64])
 
     if tick % 2 == 0:
         off_y = 0
@@ -479,8 +480,8 @@ for tick in range(160000):
     tumble_tiles_parallel_njit(ND_view, VIEW_SIZE, ss, off_y, off_x)
     tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
 
-    ND_view = np.clip(ND_view, 0, 8)
-    AC_view = np.clip(ND_view, 0, 8)
+    ND_view = np.clip(ND_view, 0, 32)
+    AC_view = np.clip(ND_view, 0, 32)
 
     # ---- write view back into global grids ----
     C[vy0:vy1, vx0:vx1]  = C_view
@@ -494,15 +495,15 @@ for tick in range(160000):
     # ---- age-based defector conversion ----
     # Any cell that has not changed in the last STALE_TICKS ticks becomes a defector (3),
     # with ND/AC energy zeroed for that cell.
-    STALE_TICKS = 10000
+    STALE_TICKS = 300
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
-        C[stale_mask] = 3
+        C[stale_mask] = 2
         ND[stale_mask] = 0
         AC[stale_mask] = 0
         last_change[stale_mask] = tick
 
-    if tick%(40)==0:
+    if tick%(5)==0:
         framecount += 1
 
         out = np.zeros((1080, 1920, 3), dtype='int')
@@ -520,9 +521,9 @@ for tick in range(160000):
 
         # species palette (R, G, B)
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
-        COL_N = np.array([90, 210, 255], dtype='int')
-        COL_D = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([255, 150, 70], dtype='int')    # orange
+        COL_D = np.array([80, 210, 255], dtype='int')
+        COL_N = np.array([0, 0, 0], dtype='int')
+        COL_A = np.array([255, 160, 80], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         # overlay species colors (bright, mixed over background)
@@ -534,9 +535,9 @@ for tick in range(160000):
 
         # faint motion trail from previous ND frame (soft)
         trail = np.clip(nd_pre[:CROP_H, :CROP_W] * 6, 0, 255).astype('int')
-        frame[:, :, 0] = (frame[:, :, 0] * 0.9 + trail * 0.1).astype('int')
-        frame[:, :, 1] = (frame[:, :, 1] * 0.9 + trail * 0.1).astype('int')
-        frame[:, :, 2] = (frame[:, :, 2] * 0.9 + trail * 0.1).astype('int')
+        frame[:, :, 0] = (frame[:, :, 0] * 0.8 + trail * 0.2).astype('int')
+        frame[:, :, 1] = (frame[:, :, 1] * 0.8 + trail * 0.2).astype('int')
+        frame[:, :, 2] = (frame[:, :, 2] * 0.8 + trail * 0.2).astype('int')
 
         frame = np.clip(frame, 0, 255)
         out[:, :, :] = frame
