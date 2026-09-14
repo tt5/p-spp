@@ -540,6 +540,29 @@ for tick in range(40000):
         frame[:, :, 2] = (frame[:, :, 2] * 0.8 + trail * 0.2).astype('int')
 
         frame = np.clip(frame, 0, 255)
+
+        # ---- overlay parameter-graph edges (PIL) ----
+        # node (x,y) maps 1:1 to pixel (x,y) in the 1920x1080 crop of the
+        # 1920x1920 global grid.
+        try:
+            from PIL import Image, ImageDraw
+            img = Image.fromarray(frame.astype(np.uint8))
+            draw = ImageDraw.Draw(img)
+            EDGE_COLOR = (0, 255, 255)      # bright cyan
+            EDGE_WIDTH = 3
+            for (u, v) in nodes.edges():
+                xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
+                xv, yv = int(nodes.nodes[v]['x']), int(nodes.nodes[v]['y'])
+                # clip to the crop region so off-screen endpoints still
+                # produce partial in-frame segments instead of being skipped
+                yu = max(0, min(yu, CROP_H - 1))
+                xv = max(0, min(xv, CROP_W - 1))
+                if yu < CROP_H and yu != -1:
+                    draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
+            frame = np.array(img)
+        except Exception as exc:
+            print(f"[graph-overlay skipped] {exc}")
+
         out[:, :, :] = frame
         
         frame = out
