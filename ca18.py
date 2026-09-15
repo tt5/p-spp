@@ -530,13 +530,13 @@ for tick in range(20000):
 
 
     # ---- chip-firing dynamics on the parameter graph ----
-    # Fire every node that sits on a aggressive cell (C == 4), but only if it has
+    # Fire every node that sits on a normal cell (C == 2), but only if it has
     # positive chips.
     for v in cf_graph.vertices:
         nid = int(str(v))
         nx_node = nodes.nodes[nid]
         x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and C[y, x] == 4 and cf_divisor.get_degree(str(v)) > 0:
+        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 100 and cf_divisor.get_degree(str(v)) >= 0:
             cf_divisor.lending_move(str(v))
 
     # For each non-starting node: delete one edge; if only one
@@ -590,9 +590,10 @@ for tick in range(20000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 100 and tick % 4400 == 0:
+    if tick >= 100 and tick % 260 == 0:
         for nid in range(4):
-            cf_divisor.lending_move(str(nid))
+            if cf_divisor.get_degree(str(nid)) >= 0:
+                cf_divisor.lending_move(str(nid))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -626,10 +627,8 @@ for tick in range(20000):
     changed = (C_view != C_view_pre)
     last_change[vy0:vy1, vx0:vx1][changed] = tick
 
-    # ---- age-based defector conversion ----
-    # Any cell that has not changed in the last STALE_TICKS ticks becomes a defector (3),
-    # with ND/AC energy zeroed for that cell.
-    STALE_TICKS = 600
+    # ---- age-based cell conversion ----
+    STALE_TICKS = 5000
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -701,8 +700,15 @@ for tick in range(20000):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        print(framecount, ",", nN, ",", nD, ",", nA, ",", nC)
+        #print(framecount, ",", nN, ",", nD, ",", nA, ",", nC)
+        print(f"({framecount} {tick})")
+        for v in cf_graph.vertices:
+            nid = int(str(v))
+            nx_node = nodes.nodes[nid]
+            print(f"{cf_divisor.get_degree(str(v))}")
+        print("---")
 
+                
         writer.append_data(frame.astype(np.uint8))
 
 writer.close()
