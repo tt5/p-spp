@@ -34,7 +34,7 @@ writer = imageio.get_writer(
 
 @njit
 def tumble_njit(spile):
-    for i in range(256):
+    for i in range(128):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -509,24 +509,24 @@ for tick in range(20000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    #if tick == 140:
-    #    new_id = len(nodes)
-    #    nodes.add_node(new_id, x=2*size//4, y=size//12,
-    #                   a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
-    #                   cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
-    #    for existing in range(new_id):
-    #        nodes.add_edge(new_id, existing)
-    #    old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
-    #    cf_graph = build_cf_graph_from_nodes(nodes)
-    #    new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
-    #    cf_divisor = CFDivisor(cf_graph, new_degrees)
-    #    param_grid = compute_param_grids(nodes, size, k=k_nearest)
-    #    a0_grid = param_grid[:, :, 0].copy()
-    #    alpha_grid = param_grid[:, :, 1].copy()
-    #    gamma_grid = param_grid[:, :, 2].copy()
-    #    cAA_grid = param_grid[:, :, 3].copy()
-    #    cAC_grid = param_grid[:, :, 4].copy()
-    #    cCC_grid = param_grid[:, :, 5].copy()
+    if tick == 140:
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=2*size//4, y=size//12,
+                       a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                       cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+        for existing in range(new_id):
+            nodes.add_edge(new_id, existing)
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
 
 
     # ---- chip-firing dynamics on the parameter graph ----
@@ -539,7 +539,7 @@ for tick in range(20000):
 
     # For each non-starting node: delete one edge; if only one
     # edge remains, move to the midpoint of that edge and reconnect to all.
-    if tick >= 100 and tick % 100 == 0:
+    if tick >= 100 and tick % 20 == 0:
         for nid in list(nodes.nodes()):
             if nid < 4:
                 continue
@@ -588,7 +588,7 @@ for tick in range(20000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 100 and tick % 200 == 0:
+    if tick >= 100 and tick % 40 == 0:
         for nid in range(4):
             if cf_divisor.get_degree(str(nid)) >= 0:
                 cf_divisor.lending_move(str(nid))
@@ -626,7 +626,7 @@ for tick in range(20000):
     last_change[vy0:vy1, vx0:vx1][changed] = tick
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 5000
+    STALE_TICKS = 100000
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -678,15 +678,17 @@ for tick in range(20000):
         # no manual endpoint clamping is needed.
         try:
             from PIL import Image, ImageDraw
-            img = Image.fromarray(frame.astype(np.uint8))
-            draw = ImageDraw.Draw(img)
-            EDGE_COLOR = (10, 245, 255)
+            EDGE_COLOR = (10, 245, 255, 128)    # cyan, 50% alpha
             EDGE_WIDTH = 2
+            overlay = Image.new('RGBA', (CROP_W, CROP_H), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
             for (u, v) in nodes.edges():
                 xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
                 xv, yv = int(nodes.nodes[v]['x']), int(nodes.nodes[v]['y'])
                 draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
-            frame = np.array(img)
+            img = Image.fromarray(frame.astype(np.uint8)).convert('RGBA')
+            img = Image.alpha_composite(img, overlay)
+            frame = np.array(img.convert('RGB'))
         except Exception as exc:
             print(f"[graph-overlay skipped] {exc}")
 
