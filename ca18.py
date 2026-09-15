@@ -352,7 +352,7 @@ last_change = np.full((size, size), -1, dtype=np.int64)
 
 nodes = nx.complete_graph(4)
 
-for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size//2), (size-1, size//2)]):
+for i, (x, y) in enumerate([(50, 50), (size-150, 50), (50, size//2), (size-150, size//2)]):
     nodes.nodes[i].update({
         'x': x, 'y': y,
         'a0': 0.5, 'alpha': 1.0, 'gamma': 1.0,
@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(1600):
+for tick in range(14000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -433,9 +433,9 @@ for tick in range(1600):
     eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
 
     if tick == 100:
-        for i in range(4):
+        for i in range(1):
             new_id = len(nodes)
-            nodes.add_node(new_id, x=size//2, y=size//2,
+            nodes.add_node(new_id, x=size//4, y=size//3,
                            a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
                            cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
             for existing in range(new_id):
@@ -452,20 +452,96 @@ for tick in range(1600):
             cAC_grid = param_grid[:, :, 4].copy()
             cCC_grid = param_grid[:, :, 5].copy()
 
+    if tick == 110:
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=3*size//4, y=size//3,
+                       a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                       cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+        for existing in range(new_id):
+            nodes.add_edge(new_id, existing)
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
+
+    if tick == 120:
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=size//4, y=size//6,
+                       a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                       cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+        for existing in range(new_id):
+            nodes.add_edge(new_id, existing)
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
+
+    if tick == 130:
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=3*size//4, y=size//6,
+                       a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                       cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+        for existing in range(new_id):
+            nodes.add_edge(new_id, existing)
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
+
+    if tick == 140:
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=2*size//4, y=size//12,
+                       a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                       cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+        for existing in range(new_id):
+            nodes.add_edge(new_id, existing)
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
+
 
     # ---- chip-firing dynamics on the parameter graph ----
-    # Fire every node that sits on a defector cell (C == 3), but only if it has
+    # Fire every node that sits on a aggressive cell (C == 4), but only if it has
     # positive chips.
     for v in cf_graph.vertices:
         nid = int(str(v))
         nx_node = nodes.nodes[nid]
         x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and C[y, x] == 3 and cf_divisor.get_degree(str(v)) >= 0:
+        if 0 <= y < size and 0 <= x < size and C[y, x] == 4 and cf_divisor.get_degree(str(v)) > 0:
             cf_divisor.lending_move(str(v))
 
-    # For each non-starting node: delete one random edge; if only one
+    # For each non-starting node: delete one edge; if only one
     # edge remains, move to the midpoint of that edge and reconnect to all.
-    if tick >= 100 and tick % 50 == 0:
+    if tick >= 100 and tick % 130 == 0:
         for nid in list(nodes.nodes()):
             if nid < 4:
                 continue
@@ -481,9 +557,12 @@ for tick in range(1600):
                         nodes.add_edge(nid, other_nid)
             elif len(neighbors) > 1:
                 # delete the edge to the neighbor with the highest chip count;
-                # ties broken by lowest node index
-                victim = max(neighbors,
-                             key=lambda n: (cf_divisor.get_degree(str(n)), -n))
+                # ties broken by shortest distance to nid
+                def edge_key(n):
+                    dx = nodes.nodes[nid]['x'] - nodes.nodes[n]['x']
+                    dy = nodes.nodes[nid]['y'] - nodes.nodes[n]['y']
+                    return (cf_divisor.get_degree(str(n)), -(dx*dx + dy*dy))
+                victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
         # rebuild chip-firing graph and recompute parameter grids
         old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
@@ -497,6 +576,10 @@ for tick in range(1600):
         cAA_grid = param_grid[:, :, 3].copy()
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
+
+    if tick >= 100 and tick % 4400 == 0:
+        for nid in range(4):
+            cf_divisor.lending_move(str(nid))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
