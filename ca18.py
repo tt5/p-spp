@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(14000):
+for tick in range(20000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -564,6 +564,19 @@ for tick in range(14000):
                     return (cf_divisor.get_degree(str(n)), -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
+                # parameter dynamics: copy from victim, keep one old, mutate one
+                param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
+                nid_data = nodes.nodes[nid]
+                victim_data = nodes.nodes[victim]
+                old_params = {p: nid_data[p] for p in param_names}
+                for p in param_names:
+                    nid_data[p] = victim_data[p]
+                keep_param = random.choice(param_names)
+                nid_data[keep_param] = old_params[keep_param]
+                mutate_param = random.choice(param_names)
+                nid_data[mutate_param] += random.choice([-0.1, 0.1])
+                for p in param_names:
+                    nid_data[p] = max(0.5, min(nid_data[p], 8.0))
         # rebuild chip-firing graph and recompute parameter grids
         old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
         cf_graph = build_cf_graph_from_nodes(nodes)
