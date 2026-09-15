@@ -34,7 +34,7 @@ writer = imageio.get_writer(
 
 @njit
 def tumble_njit(spile):
-    for i in range(128):
+    for i in range(256):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(20000):
+for tick in range(34000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -528,18 +528,36 @@ for tick in range(20000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
+    if tick == 150:
+        new_id = len(nodes)
+        nodes.add_node(new_id, x=2*size//4, y=size//6,
+                       a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
+                       cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
+        for existing in range(new_id):
+            nodes.add_edge(new_id, existing)
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
+        param_grid = compute_param_grids(nodes, size, k=k_nearest)
+        a0_grid = param_grid[:, :, 0].copy()
+        alpha_grid = param_grid[:, :, 1].copy()
+        gamma_grid = param_grid[:, :, 2].copy()
+        cAA_grid = param_grid[:, :, 3].copy()
+        cAC_grid = param_grid[:, :, 4].copy()
+        cCC_grid = param_grid[:, :, 5].copy()
 
     # ---- chip-firing dynamics on the parameter graph ----
     for v in cf_graph.vertices:
         nid = int(str(v))
         nx_node = nodes.nodes[nid]
         x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 100 and cf_divisor.get_degree(str(v)) >= 0:
+        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 80 and cf_divisor.get_degree(str(v)) >= 0:
             cf_divisor.lending_move(str(v))
 
     # For each non-starting node: delete one edge; if only one
     # edge remains, move to the midpoint of that edge and reconnect to all.
-    if tick >= 100 and tick % 20 == 0:
+    if tick >= 200 and tick % 30 == 0:
         for nid in list(nodes.nodes()):
             if nid < 4:
                 continue
@@ -555,26 +573,30 @@ for tick in range(20000):
                         nodes.add_edge(nid, other_nid)
             elif len(neighbors) > 1:
                 # delete the edge to the neighbor with the highest chip count;
-                # ties broken by shortest distance to nid
+                # ties broken by shortest distance to nid; parameter dynamics
+                # only happen on a tie
                 def edge_key(n):
                     dx = nodes.nodes[nid]['x'] - nodes.nodes[n]['x']
                     dy = nodes.nodes[nid]['y'] - nodes.nodes[n]['y']
                     return (cf_divisor.get_degree(str(n)), -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
-                # parameter dynamics: copy from victim, keep one old, mutate one
-                param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
-                nid_data = nodes.nodes[nid]
-                victim_data = nodes.nodes[victim]
-                old_params = {p: nid_data[p] for p in param_names}
-                for p in param_names:
-                    nid_data[p] = victim_data[p]
-                keep_param = random.choice(param_names)
-                nid_data[keep_param] = old_params[keep_param]
-                mutate_param = random.choice(param_names)
-                nid_data[mutate_param] += random.choice([-0.1, 0.1])
-                for p in param_names:
-                    nid_data[p] = max(0.5, min(nid_data[p], 8.0))
+                # check for a tie: does any other neighbor share the victim's key?
+                victim_key = edge_key(victim)
+                is_tied = any(edge_key(n) == victim_key for n in neighbors if n != victim)
+                if is_tied:
+                    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
+                    nid_data = nodes.nodes[nid]
+                    victim_data = nodes.nodes[victim]
+                    old_params = {p: nid_data[p] for p in param_names}
+                    for p in param_names:
+                        nid_data[p] = victim_data[p]
+                    keep_param = random.choice(param_names)
+                    nid_data[keep_param] = old_params[keep_param]
+                    mutate_param = random.choice(param_names)
+                    nid_data[mutate_param] += random.choice([-0.1, 0.1])
+                    for p in param_names:
+                        nid_data[p] = max(0.5, min(nid_data[p], 8.0))
         # rebuild chip-firing graph and recompute parameter grids
         old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
         cf_graph = build_cf_graph_from_nodes(nodes)
@@ -588,7 +610,7 @@ for tick in range(20000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 100 and tick % 40 == 0:
+    if tick >= 200 and tick % 60 == 0:
         for nid in range(4):
             if cf_divisor.get_degree(str(nid)) >= 0:
                 cf_divisor.lending_move(str(nid))
@@ -626,7 +648,7 @@ for tick in range(20000):
     last_change[vy0:vy1, vx0:vx1][changed] = tick
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 100000
+    STALE_TICKS = 500
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -634,7 +656,7 @@ for tick in range(20000):
         AC[stale_mask] = 0
         last_change[stale_mask] = tick
 
-    if tick%(5)==0:
+    if tick%(5)==0 and tick>12000:
         framecount += 1
 
         out = np.zeros((1080, 1920, 3), dtype='int')
@@ -678,8 +700,8 @@ for tick in range(20000):
         # no manual endpoint clamping is needed.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (10, 245, 255, 128)    # cyan, 50% alpha
-            EDGE_WIDTH = 2
+            EDGE_COLOR = (10, 245, 255, 52)    # cyan, 50% alpha
+            EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP_W, CROP_H), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             for (u, v) in nodes.edges():
@@ -700,13 +722,13 @@ for tick in range(20000):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        #print(framecount, ",", nN, ",", nD, ",", nA, ",", nC)
-        print(f"({framecount} {tick})")
-        for v in cf_graph.vertices:
-            nid = int(str(v))
-            nx_node = nodes.nodes[nid]
-            print(f"{cf_divisor.get_degree(str(v))}")
-        print("---")
+        print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
+        #print(f"({framecount} {tick})")
+        #for v in cf_graph.vertices:
+        #    nid = int(str(v))
+        #    nx_node = nodes.nodes[nid]
+        #    print(f"{cf_divisor.get_degree(str(v))}")
+        #print("---")
 
                 
         writer.append_data(frame.astype(np.uint8))
