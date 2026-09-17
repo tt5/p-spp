@@ -35,7 +35,7 @@ writer = imageio.get_writer(
 
 @njit
 def tumble_njit(spile):
-    for i in range(128):
+    for i in range(256):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -403,7 +403,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(4000):
+for tick in range(2000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -555,13 +555,12 @@ for tick in range(4000):
             continue
         nx_node = nodes.nodes[nid]
         x, y = int(nx_node['x']), int(nx_node['y'])
-        #if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 80 and cf_divisor.get_degree(str(v)) >= 0:
-        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 200:
+        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 5 and cf_divisor.get_degree(str(v)) >= 0:
             cf_divisor.lending_move(str(v))
 
     # For each non-starting node: delete one edge; if only one
     # edge remains, move to the midpoint of that edge and reconnect to all.
-    if tick >= 200 and tick % 20 == 0:
+    if tick >= 200 and tick % 10 == 0:
         for nid in list(nodes.nodes()):
             if nid < 4:
                 continue
@@ -614,7 +613,7 @@ for tick in range(4000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 200 and tick % 4 == 0:
+    if tick >= 200 and tick % 2 == 0:
         for nid in range(4):
             if cf_divisor.get_degree(str(nid)) < 0:
                 cf_divisor.borrowing_move(str(nid))
@@ -663,7 +662,7 @@ for tick in range(4000):
         AC[stale_mask] = 0
         last_change[stale_mask] = tick
 
-    if tick%1==0 and tick>0:
+    if tick%2==0 and tick>0:
         framecount += 1
 
         # Video frame is 1920x1080. Global grid is size x size (1024).
@@ -683,7 +682,7 @@ for tick in range(4000):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([255, 150, 70], dtype='int')    # orange
+        COL_A = np.array([235, 140, 60], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         C_crop = C[:CROP, :CROP]
@@ -706,7 +705,7 @@ for tick in range(4000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (10, 245, 255, 64)    # cyan, 50% alpha
+            EDGE_COLOR = (0, 205, 235, 76)
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
@@ -729,13 +728,13 @@ for tick in range(4000):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
-        #print(f"({framecount} {tick})")
-        #for v in cf_graph.vertices:
-        #    nid = int(str(v))
-        #    nx_node = nodes.nodes[nid]
-        #    print(f"{cf_divisor.get_degree(str(v))}, ", end='')
-        #print("---")
+        #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
+        print(f"({framecount} {tick})")
+        for v in cf_graph.vertices:
+            nid = int(str(v))
+            nx_node = nodes.nodes[nid]
+            print(f"{cf_divisor.get_degree(str(v))}, ", end='')
+        print("---")
 
                 
         writer.append_data(frame.astype(np.uint8))
