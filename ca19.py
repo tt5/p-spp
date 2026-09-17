@@ -311,7 +311,8 @@ def birthAC_njit(C, AC, size):
 
 
 def compute_param_grids(nodes, size, k=2):
-    """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by averaging k nearest nodes.
+    """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by IDW (p=2) over the
+    k nearest nodes.
 
     nodes: networkx graph where each node carries x, y, a0, alpha, gamma, cAA, cAC, cCC.
     """
@@ -327,7 +328,11 @@ def compute_param_grids(nodes, size, k=2):
     dists = np.sqrt((diffs ** 2).sum(axis=2))
     knn = min(k, len(nodes))
     knn_idx = np.argpartition(dists, knn, axis=1)[:, :knn]
-    avg_params = node_params[knn_idx].mean(axis=1)
+    k_dists = np.take_along_axis(dists, knn_idx, axis=1)          # (N_cells, knn)
+    eps = 1e-9
+    w = 1.0 / (k_dists * k_dists + eps)                          # inverse-square, p=2
+    w = w / w.sum(axis=1, keepdims=True)                         # normalize
+    avg_params = (node_params[knn_idx] * w[..., None]).sum(axis=1)
     return avg_params.reshape(size, size, 6)
 
 
@@ -368,7 +373,7 @@ C[0:-1, 0:2] = 4
 C[-2:-1, 0:-1] = 4
 C[0:-1, -2:-1] = 4
 
-k_nearest = 2
+k_nearest = 3
 
 # Compute per-cell parameter grids from current node positions
 param_grid = compute_param_grids(nodes, size, k=k_nearest)
@@ -397,7 +402,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(8000):
+for tick in range(2000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -545,14 +550,17 @@ for tick in range(8000):
     # ---- chip-firing dynamics on the parameter graph ----
     for v in cf_graph.vertices:
         nid = int(str(v))
+        if nid < 4:
+            continue
         nx_node = nodes.nodes[nid]
         x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 80 and cf_divisor.get_degree(str(v)) >= 0:
+        #if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 80 and cf_divisor.get_degree(str(v)) >= 0:
+        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 200:
             cf_divisor.lending_move(str(v))
 
     # For each non-starting node: delete one edge; if only one
     # edge remains, move to the midpoint of that edge and reconnect to all.
-    if tick >= 200 and tick % 30 == 0:
+    if tick >= 200 and tick % 20 == 0:
         for nid in list(nodes.nodes()):
             if nid < 4:
                 continue
@@ -605,10 +613,12 @@ for tick in range(8000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 200 and tick % 60 == 0:
+    if tick >= 200 and tick % 8 == 0:
         for nid in range(4):
-            if cf_divisor.get_degree(str(nid)) >= 0:
-                cf_divisor.lending_move(str(nid))
+            if cf_divisor.get_degree(str(nid)) < 0:
+                cf_divisor.borrowing_move(str(nid))
+            #else:
+            #    cf_divisor.lending_move(str(nid))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -618,7 +628,7 @@ for tick in range(8000):
     ND_view = np.clip(ND_view - ((C_view != 2) & (C_view != 3)) * maxclip, 0, maxclip)
     AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
 
-    ss = random.choice([64])
+    ss = random.choice([256])
 
     if tick % 2 == 0:
         off_y = 0
@@ -630,8 +640,8 @@ for tick in range(8000):
     tumble_tiles_parallel_njit(ND_view, VIEW_SIZE, ss, off_y, off_x)
     tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
 
-    ND_view = np.clip(ND_view, 0, 32)
-    AC_view = np.clip(ND_view, 0, 32)
+    ND_view = np.clip(ND_view, 0, 64)
+    AC_view = np.clip(ND_view, 0, 64)
 
     # ---- write view back into global grids ----
     C[vy0:vy1, vx0:vx1]  = C_view
@@ -651,7 +661,7 @@ for tick in range(8000):
         AC[stale_mask] = 0
         last_change[stale_mask] = tick
 
-    if tick%2==0 and tick>0:
+    if tick%1==0 and tick>0:
         framecount += 1
 
         # Video frame is 1920x1080. Global grid is size x size (1024).
@@ -671,7 +681,7 @@ for tick in range(8000):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([255, 180, 100], dtype='int')    # orange
+        COL_A = np.array([255, 170, 90], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         C_crop = C[:CROP, :CROP]
@@ -694,7 +704,7 @@ for tick in range(8000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (10, 245, 255, 56)    # cyan, 50% alpha
+            EDGE_COLOR = (10, 245, 255, 60)    # cyan, 50% alpha
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
@@ -717,13 +727,13 @@ for tick in range(8000):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
-        #print(f"({framecount} {tick})")
-        #for v in cf_graph.vertices:
-        #    nid = int(str(v))
-        #    nx_node = nodes.nodes[nid]
-        #    print(f"{cf_divisor.get_degree(str(v))}")
-        #print("---")
+        #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
+        print(f"({framecount} {tick})")
+        for v in cf_graph.vertices:
+            nid = int(str(v))
+            nx_node = nodes.nodes[nid]
+            print(f"{cf_divisor.get_degree(str(v))}, ", end='')
+        print("---")
 
                 
         writer.append_data(frame.astype(np.uint8))
