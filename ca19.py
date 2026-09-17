@@ -30,11 +30,12 @@ writer = imageio.get_writer(
     codec="libx264",
     quality=None,
     pixelformat="yuv420p",
+    macro_block_size=None,
 )
 
 @njit
 def tumble_njit(spile):
-    for i in range(256):
+    for i in range(128):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -402,7 +403,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(4000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -613,7 +614,7 @@ for tick in range(2000):
         cAC_grid = param_grid[:, :, 4].copy()
         cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 200 and tick % 8 == 0:
+    if tick >= 200 and tick % 4 == 0:
         for nid in range(4):
             if cf_divisor.get_degree(str(nid)) < 0:
                 cf_divisor.borrowing_move(str(nid))
@@ -628,7 +629,8 @@ for tick in range(2000):
     ND_view = np.clip(ND_view - ((C_view != 2) & (C_view != 3)) * maxclip, 0, maxclip)
     AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
 
-    ss = random.choice([256])
+    #ss = random.choice([256])
+    ss = 128
 
     if tick % 2 == 0:
         off_y = 0
@@ -641,7 +643,7 @@ for tick in range(2000):
     tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
 
     ND_view = np.clip(ND_view, 0, 64)
-    AC_view = np.clip(ND_view, 0, 64)
+    AC_view = np.clip(AC_view, 0, 64)
 
     # ---- write view back into global grids ----
     C[vy0:vy1, vx0:vx1]  = C_view
@@ -668,7 +670,7 @@ for tick in range(2000):
         # Crop the grid to a 1024x1024 square and letterbox it into the frame,
         # centered with black padding.
 
-        VF_H, VF_W = 1080, 1920          # video frame dimensions
+        VF_H, VF_W = VIDEO_H, VIDEO_W          # video frame dimensions
         CROP = 1024                       # grid crop size (fits in both dims)
         OFFY = (VF_H - CROP) // 2        # 28  vertical offset into the frame
         OFFX = (VF_W - CROP) // 2        # 448 horizontal offset into the frame
@@ -681,7 +683,7 @@ for tick in range(2000):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([255, 170, 90], dtype='int')    # orange
+        COL_A = np.array([255, 150, 70], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         C_crop = C[:CROP, :CROP]
@@ -704,7 +706,7 @@ for tick in range(2000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (10, 245, 255, 60)    # cyan, 50% alpha
+            EDGE_COLOR = (10, 245, 255, 64)    # cyan, 50% alpha
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
@@ -727,13 +729,13 @@ for tick in range(2000):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
-        print(f"({framecount} {tick})")
-        for v in cf_graph.vertices:
-            nid = int(str(v))
-            nx_node = nodes.nodes[nid]
-            print(f"{cf_divisor.get_degree(str(v))}, ", end='')
-        print("---")
+        print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
+        #print(f"({framecount} {tick})")
+        #for v in cf_graph.vertices:
+        #    nid = int(str(v))
+        #    nx_node = nodes.nodes[nid]
+        #    print(f"{cf_divisor.get_degree(str(v))}, ", end='')
+        #print("---")
 
                 
         writer.append_data(frame.astype(np.uint8))
