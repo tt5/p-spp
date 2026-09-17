@@ -403,7 +403,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(8000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -549,19 +549,24 @@ for tick in range(2000):
         cCC_grid = param_grid[:, :, 5].copy()
 
     # ---- chip-firing dynamics on the parameter graph ----
-    for v in cf_graph.vertices:
-        nid = int(str(v))
-        if nid < 4:
-            continue
-        nx_node = nodes.nodes[nid]
-        x, y = int(nx_node['x']), int(nx_node['y'])
-        if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 5 and cf_divisor.get_degree(str(v)) >= 0:
-            cf_divisor.lending_move(str(v))
+    if tick%2 == 0:
+        for v in cf_graph.vertices:
+            nid = int(str(v))
+            if nid < 4:
+                continue
+            nx_node = nodes.nodes[nid]
+            x, y = int(nx_node['x']), int(nx_node['y'])
+            #if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 5 and cf_divisor.get_degree(str(v)) >= 0:
+            if 0 <= y < size and 0 <= x < size and (C[y, x]) == 4:
+                cf_divisor.lending_move(str(v))
 
     # For each non-starting node: delete one edge; if only one
-    # edge remains, move to the midpoint of that edge and reconnect to all.
-    if tick >= 200 and tick % 10 == 0:
+    # edge remains, move to the midpoint of that edge, then if the new
+    # position is too close to any other node, kick away from the nearest
+    # one (and reconnect to all).
+    if tick >= 160 and tick % 5 == 0:
         for nid in list(nodes.nodes()):
+            moved = False
             if nid < 4:
                 continue
             neighbors = list(nodes.neighbors(nid))
@@ -569,8 +574,34 @@ for tick in range(2000):
                 other = neighbors[0]
                 nid_data = nodes.nodes[nid]
                 other_data = nodes.nodes[other]
+                # 1. move to midpoint
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
+                # 2. if too close to any other node, kick away from the nearest
+                min_dist = 16.0
+                best_d = float('inf')
+                best_nx = None
+                best_ny = None
+                for onid in nodes.nodes():
+                    if onid == nid:
+                        continue
+                    ox = nodes.nodes[onid]['x']
+                    oy = nodes.nodes[onid]['y']
+                    d2 = (nid_data['x'] - ox) ** 2 + (nid_data['y'] - oy) ** 2
+                    d = math.sqrt(d2)
+                    if d < best_d:
+                        best_d = d
+                        best_nx = ox
+                        best_ny = oy
+                if best_d < min_dist and best_nx is not None:
+                    kx = nid_data['x'] - best_nx
+                    ky = nid_data['y'] - best_ny
+                    k = math.sqrt(kx * kx + ky * ky) + 1e-6
+                    ux = kx / k
+                    uy = ky / k
+                    kick = (min_dist - best_d) * 0.5 + 2.0
+                    nid_data['x'] += ux * kick
+                    nid_data['y'] += uy * kick
                 for other_nid in nodes.nodes():
                     if other_nid != nid:
                         nodes.add_edge(nid, other_nid)
@@ -578,6 +609,7 @@ for tick in range(2000):
                 # delete the edge to the neighbor with the highest chip count;
                 # ties broken by shortest distance to nid; parameter dynamics
                 # only happen on a tie
+                moved = True
                 def edge_key(n):
                     dx = nodes.nodes[nid]['x'] - nodes.nodes[n]['x']
                     dy = nodes.nodes[nid]['y'] - nodes.nodes[n]['y']
@@ -605,20 +637,22 @@ for tick in range(2000):
         cf_graph = build_cf_graph_from_nodes(nodes)
         new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
         cf_divisor = CFDivisor(cf_graph, new_degrees)
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+        if moved:
+            param_grid = compute_param_grids(nodes, size, k=k_nearest)
+            a0_grid = param_grid[:, :, 0].copy()
+            alpha_grid = param_grid[:, :, 1].copy()
+            gamma_grid = param_grid[:, :, 2].copy()
+            cAA_grid = param_grid[:, :, 3].copy()
+            cAC_grid = param_grid[:, :, 4].copy()
+            cCC_grid = param_grid[:, :, 5].copy()
 
-    if tick >= 200 and tick % 2 == 0:
+    if tick >= 200 and tick % 4 == 0:
         for nid in range(4):
+            #print(f"{nid} {cf_divisor.get_degree(str(nid))}")
             if cf_divisor.get_degree(str(nid)) < 0:
                 cf_divisor.borrowing_move(str(nid))
-            #else:
-            #    cf_divisor.lending_move(str(nid))
+            elif cf_divisor.get_degree(str(nid)) > 10:
+                cf_divisor.lending_move(str(nid))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -629,7 +663,7 @@ for tick in range(2000):
     AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
 
     #ss = random.choice([256])
-    ss = 128
+    ss = 64
 
     if tick % 2 == 0:
         off_y = 0
@@ -682,7 +716,7 @@ for tick in range(2000):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([235, 140, 60], dtype='int')    # orange
+        COL_A = np.array([205, 140, 60], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         C_crop = C[:CROP, :CROP]
@@ -705,7 +739,7 @@ for tick in range(2000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 205, 235, 76)
+            EDGE_COLOR = (0, 175, 205, 96)
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
@@ -728,13 +762,12 @@ for tick in range(2000):
         nD = np.sum(C == 3)
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
-        #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
-        print(f"({framecount} {tick})")
-        for v in cf_graph.vertices:
-            nid = int(str(v))
-            nx_node = nodes.nodes[nid]
-            print(f"{cf_divisor.get_degree(str(v))}, ", end='')
-        print("---")
+        print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
+        #print(f"({framecount} {tick})")
+        #for v in cf_graph.vertices:
+        #    nid = int(str(v))
+        #    print(f"({v}) {cf_divisor.get_degree(str(v))}, ", end='')
+        #print("---")
 
                 
         writer.append_data(frame.astype(np.uint8))
