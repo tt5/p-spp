@@ -352,7 +352,7 @@ last_change = np.full((size, size), -1, dtype=np.int64)
 
 nodes = nx.complete_graph(4)
 
-for i, (x, y) in enumerate([(50, 50), (size-140, 50), (50, size//2), (size-140, size//2)]):
+for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size)]):
     nodes.nodes[i].update({
         'x': x, 'y': y,
         'a0': 0.5, 'alpha': 1.0, 'gamma': 1.0,
@@ -397,7 +397,7 @@ cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(8000):
     # ---- snapshot for rendering (global, before view extraction) ----
     nd_pre = ND.copy()
     ac_pre = AC.copy()
@@ -468,7 +468,7 @@ for tick in range(2000):
 
     if tick == 120:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//6,
+        nodes.add_node(new_id, x=size//2, y=size//3,
                        a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
@@ -487,7 +487,7 @@ for tick in range(2000):
 
     if tick == 130:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=3*size//4, y=size//6,
+        nodes.add_node(new_id, x=3*size//4, y=size//3,
                        a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
@@ -506,7 +506,7 @@ for tick in range(2000):
 
     if tick == 140:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=2*size//4, y=size//12,
+        nodes.add_node(new_id, x=size//2, y=size//6,
                        a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
@@ -525,7 +525,7 @@ for tick in range(2000):
 
     if tick == 150:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=2*size//4, y=size//6,
+        nodes.add_node(new_id, x=size//2, y=size//3,
                        a0=random.randint(5, 20)/10, alpha=random.randint(5, 20)/10, gamma=random.randint(5, 80)/10,
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
@@ -643,7 +643,7 @@ for tick in range(2000):
     last_change[vy0:vy1, vx0:vx1][changed] = tick
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 500
+    STALE_TICKS = 500000
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -651,21 +651,21 @@ for tick in range(2000):
         AC[stale_mask] = 0
         last_change[stale_mask] = tick
 
-    if tick%1==0 and tick>0:
+    if tick%2==0 and tick>0:
         framecount += 1
 
-        out = np.zeros((1080, 1920, 3), dtype='int')
+        # Video frame is 1920x1080. Global grid is size x size (1024).
+        # Crop the grid to a 1024x1024 square and letterbox it into the frame,
+        # centered with black padding.
 
-        # Fixed top-left crop: render the top 1080x1920 of the 1920x1920 global grid
-        CROP_H = 1080
-        CROP_W = 1920
+        VF_H, VF_W = 1080, 1920          # video frame dimensions
+        CROP = 1024                       # grid crop size (fits in both dims)
+        OFFY = (VF_H - CROP) // 2        # 28  vertical offset into the frame
+        OFFX = (VF_W - CROP) // 2        # 448 horizontal offset into the frame
 
-        # ND background from cropped region
-        e = np.clip(ND[:CROP_H, :CROP_W] * 10, 0, 255).astype('int')
-        frame = np.zeros((CROP_H, CROP_W, 3), dtype='int')
-        frame[:, :, 0] = (e // 4).astype('int')
-        frame[:, :, 1] = (e // 2).astype('int')
-        frame[:, :, 2] = e.astype('int')
+        out = np.zeros((VF_H, VF_W, 3), dtype='int')
+
+        frame = np.zeros((CROP, CROP, 3), dtype='int')
 
         # species palette (R, G, B)
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
@@ -674,30 +674,29 @@ for tick in range(2000):
         COL_A = np.array([255, 180, 100], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
-        # overlay species colors (bright, mixed over background)
-        C_crop = C[:CROP_H, :CROP_W]
+        C_crop = C[:CROP, :CROP]
         for mask, col in [(C_crop == 1, COL_Q), (C_crop == 2, COL_N),
                           (C_crop == 3, COL_D), (C_crop == 4, COL_A),
                           (C_crop == 5, COL_C)]:
-            frame[mask] = np.clip(frame[mask] * 0.3 + col * 0.7, 0, 255)
+            frame[mask] = col
 
-        # faint motion trail from previous ND frame (soft)
-        trail = np.clip(nd_pre[:CROP_H, :CROP_W] * 6, 0, 255).astype('int')
-        frame[:, :, 0] = (frame[:, :, 0] * 0.8 + trail * 0.2).astype('int')
-        frame[:, :, 1] = (frame[:, :, 1] * 0.8 + trail * 0.2).astype('int')
-        frame[:, :, 2] = (frame[:, :, 2] * 0.8 + trail * 0.2).astype('int')
+        ## faint motion trail from previous ND frame (soft)
+        #trail = np.clip(nd_pre[:CROP, :CROP] * 6, 0, 255).astype('int')
+        #frame[:, :, 0] = (frame[:, :, 0] * 0.8 + trail * 0.2).astype('int')
+        #frame[:, :, 1] = (frame[:, :, 1] * 0.8 + trail * 0.2).astype('int')
+        #frame[:, :, 2] = (frame[:, :, 2] * 0.8 + trail * 0.2).astype('int')
 
         frame = np.clip(frame, 0, 255)
 
         # ---- overlay parameter-graph edges (PIL) ----
-        # node (x,y) maps 1:1 to pixel (x,y) in the 1920x1080 crop of the
-        # 1920x1920 global grid. PIL clips lines to the image bounds, so
-        # no manual endpoint clamping is needed.
+        # node (x,y) lives in grid coordinates 0..size.
+        # The crop is taken from the top-left of the grid, so node coords are used
+        # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
             EDGE_COLOR = (10, 245, 255, 56)    # cyan, 50% alpha
             EDGE_WIDTH = 4
-            overlay = Image.new('RGBA', (CROP_W, CROP_H), (0, 0, 0, 0))
+            overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             for (u, v) in nodes.edges():
                 xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
@@ -709,7 +708,8 @@ for tick in range(2000):
         except Exception as exc:
             print(f"[graph-overlay skipped] {exc}")
 
-        out[:, :, :] = frame
+        # letterbox: write the square crop into the center of the 1920x1080 frame
+        out[OFFY:OFFY+CROP, OFFX:OFFX+CROP, :] = frame
         
         frame = out
 
