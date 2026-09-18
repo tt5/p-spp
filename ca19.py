@@ -9,41 +9,22 @@ import numpy as np
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
 
-# ---- chip-firing helpers for the simple parameter graph ----
-# Graph is simple (multiplicity 1), so valence(v) == degree(v).
-# lending_move(v):  chips[v]  -= degree(v)
-#                   for each neighbor u: chips[u] += 1
-# borrowing_move(v): chips[v] += degree(v)
-#                    for each neighbor u: chips[u] -= 1
-# Total chips are conserved by both moves.
 def chip_degree(nodes, nid):
     return nodes.degree(nid)
 
 def chip_lending_move(nodes, nid):
     deg = nodes.degree(nid)
-    if deg == 0:
-        return
     nodes.nodes[nid]['chips'] -= deg
     for nb in nodes.neighbors(nid):
         nodes.nodes[nb]['chips'] += 1
 
 def chip_borrowing_move(nodes, nid):
     deg = nodes.degree(nid)
-    if deg == 0:
-        return
     nodes.nodes[nid]['chips'] += deg
     for nb in nodes.neighbors(nid):
         nodes.nodes[nb]['chips'] -= 1
 
-# Global grid size (must be defined before the parameter graph below).
 size = 1024
-
-# Parameter graph (networkx): 4 corner nodes, fully connected.
-# Each node carries position + 6 parameters:
-#   x, y, a0, alpha, gamma, cAA, cAC, cCC
-# compute_param_grids reads node attributes to build the per-cell
-# parameter field; a 5th node can be injected mid-run (tick 100).
-
 
 VIDEO_W, VIDEO_H = 1920, 1080
 VIDEO_FPS = 60
@@ -149,7 +130,7 @@ def remove_queens_njit(C, ND, size):
             C[y, x] = 5
 
 @njit
-def add_queen_energy_njit(C, ND, AC, size, qenergy):
+def add_queen_energy_njit(C, ND, size, qenergy):
     ys, xs = np.where(C == 3)
     for k in range(ys.shape[0]):
         y = ys[k]
@@ -365,7 +346,7 @@ def compute_param_grids(nodes, size, k=2):
 VIEW_SIZE = 1024
 size = 1024
 
-VIEW_ORIGIN = 0  # top-left corner of the 192x192 view within the 256x256 global grid
+VIEW_ORIGIN = 0
 
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
@@ -378,21 +359,17 @@ last_change = np.full((size, size), -1, dtype=np.int64)
 # 4 A
 # 5 C
 
-# Parameter graph nodes: [x, y, a0, alpha, gamma, cAA, cAC, cCC]
-# Default: 4 corners.
-
 nodes = nx.complete_graph(4)
 
-for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size)]):
+for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)]):
     nodes.nodes[i].update({
         'x': x, 'y': y,
         'a0': 0.5, 'alpha': 1.0, 'gamma': 1.0,
         'cAA': 1.0, 'cAC': 1.0, 'cCC': 1.0,
+        'chips': 0,
     })
 
 # Initial conditions
-#bsize = size//4
-#C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 3
 C = C+3
 C[0:2, 0:-1] = 4
 C[0:-1, 0:2] = 4
@@ -410,20 +387,10 @@ cAA_grid = param_grid[:, :, 3].copy()
 cAC_grid = param_grid[:, :, 4].copy()
 cCC_grid = param_grid[:, :, 5].copy()
 
-# Grid can be updated mid-simulation by modifying the nodes list and
-# re-computing param_grid (e.g., nodes.append([...]) then recompute).
-
-# ---- chip-firing state lives directly on nodes ----
-# Each node carries a 'chips' attribute. Initial chips are 0.
-for n in nodes.nodes():
-    nodes.nodes[n].setdefault('chips', 0)
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(8000):
-    # ---- snapshot for rendering (global, before view extraction) ----
-    nd_pre = ND.copy()
-    ac_pre = AC.copy()
+for tick in range(500):
 
     # ---- extract view from global grids ----
     vy0 = 0
@@ -574,29 +541,15 @@ for tick in range(8000):
                 # 1. move to midpoint
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
-                # 2. if too close to any other node, kick away from the nearest
+                # 2. if too close to the collapse target, kick away from it
                 min_dist = 16.0
-                best_d = float('inf')
-                best_nx = None
-                best_ny = None
-                for onid in nodes.nodes():
-                    if onid == nid:
-                        continue
-                    ox = nodes.nodes[onid]['x']
-                    oy = nodes.nodes[onid]['y']
-                    d2 = (nid_data['x'] - ox) ** 2 + (nid_data['y'] - oy) ** 2
-                    d = math.sqrt(d2)
-                    if d < best_d:
-                        best_d = d
-                        best_nx = ox
-                        best_ny = oy
-                if best_d < min_dist and best_nx is not None:
-                    kx = nid_data['x'] - best_nx
-                    ky = nid_data['y'] - best_ny
-                    k = math.sqrt(kx * kx + ky * ky) + 1e-6
-                    ux = kx / k
-                    uy = ky / k
-                    kick = (min_dist - best_d) * 0.5 + 2.0
+                kx = nid_data['x'] - other_data['x']
+                ky = nid_data['y'] - other_data['y']
+                d = math.sqrt(kx * kx + ky * ky) + 1e-6
+                if d < min_dist:
+                    ux = kx / d
+                    uy = ky / d
+                    kick = (min_dist - d) * 0.5 + 2.0
                     nid_data['x'] += ux * kick
                     nid_data['y'] += uy * kick
                 for other_nid in nodes.nodes():
@@ -647,7 +600,7 @@ for tick in range(8000):
                 chip_lending_move(nodes, nid)
 
     qenergy = 4
-    add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
+    add_queen_energy_njit(C_view, ND_view, VIEW_SIZE, qenergy)
 
     maxclip = 3 + qenergy
 
@@ -688,7 +641,7 @@ for tick in range(8000):
         AC[stale_mask] = 0
         last_change[stale_mask] = tick
 
-    if tick%2==0 and tick>0:
+    if tick%1==0 and tick>0:
         framecount += 1
 
         # Video frame is 1920x1080. Global grid is size x size (1024).
@@ -716,12 +669,6 @@ for tick in range(8000):
                           (C_crop == 3, COL_D), (C_crop == 4, COL_A),
                           (C_crop == 5, COL_C)]:
             frame[mask] = col
-
-        ## faint motion trail from previous ND frame (soft)
-        #trail = np.clip(nd_pre[:CROP, :CROP] * 6, 0, 255).astype('int')
-        #frame[:, :, 0] = (frame[:, :, 0] * 0.8 + trail * 0.2).astype('int')
-        #frame[:, :, 1] = (frame[:, :, 1] * 0.8 + trail * 0.2).astype('int')
-        #frame[:, :, 2] = (frame[:, :, 2] * 0.8 + trail * 0.2).astype('int')
 
         frame = np.clip(frame, 0, 255)
 
