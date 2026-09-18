@@ -67,7 +67,7 @@ def tumble_tiles_parallel_njit(T, size, ss, off_y, off_x):
             T[y0:y1, x0:x1] = tumble_njit(sub)
 
 @njit
-def promote_queens_njit(C, AC, ND, size):
+def promote_queens_njit(C, size):
     ys, xs = np.where(C == 3)
     for k in range(ys.shape[0]):
         y = ys[k]
@@ -94,7 +94,7 @@ def promote_queens_njit(C, AC, ND, size):
             C[y, x] = 1
 
 @njit
-def remove_queens_njit(C, ND, size):
+def remove_queens_njit(C, size):
     ys, xs = np.where(C == 1)
     for k in range(ys.shape[0]):
         y = ys[k]
@@ -317,30 +317,78 @@ def birthAC_njit(C, AC, size):
                 C[y,x] = 4
 
 
-def compute_param_grids(nodes, size, k=2):
+def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
     """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by IDW (p=2) over the
-    k nearest nodes.
+    k nearest nodes, writing results into the six pre-allocated (size, size) arrays.
+
+    Distances are built one node at a time (no (N_cells, N_nodes, 2) broadcast).
+    For k = 1 this is a nearest-neighbour (Voronoi) assignment; for k >= 2 the same
+    inverse-square weighting as before is applied.
 
     nodes: networkx graph where each node carries x, y, a0, alpha, gamma, cAA, cAC, cCC.
+    out_*: float64 arrays of shape (size, size), reused across calls.
     """
     if len(nodes) == 0:
-        return np.zeros((size, size, 6), dtype='float64')
+        out_a0.fill(0); out_alpha.fill(0); out_gamma.fill(0)
+        out_cAA.fill(0); out_cAC.fill(0); out_cCC.fill(0)
+        return
     node_ids = list(nodes.nodes())
-    node_xy = np.array([[nodes.nodes[n]['x'], nodes.nodes[n]['y']] for n in node_ids], dtype='float64')
-    node_params = np.array([[nodes.nodes[n]['a0'], nodes.nodes[n]['alpha'], nodes.nodes[n]['gamma'],
-                             nodes.nodes[n]['cAA'], nodes.nodes[n]['cAC'], nodes.nodes[n]['cCC']]
-                            for n in node_ids], dtype='float64')
-    cell_coords = np.stack(np.meshgrid(np.arange(size), np.arange(size), indexing='ij'), axis=-1).reshape(-1, 2).astype('float64')
-    diffs = cell_coords[:, None, :] - node_xy[None, :, :]
-    dists = np.sqrt((diffs ** 2).sum(axis=2))
-    knn = min(k, len(nodes))
+    N_nodes = len(node_ids)
+    node_xy = np.empty((N_nodes, 2), dtype='float64')
+    node_params = np.empty((N_nodes, 6), dtype='float64')
+    for i, nid in enumerate(node_ids):
+        nd = nodes.nodes[nid]
+        node_xy[i, 0] = nd['x']
+        node_xy[i, 1] = nd['y']
+        node_params[i, 0] = nd['a0']
+        node_params[i, 1] = nd['alpha']
+        node_params[i, 2] = nd['gamma']
+        node_params[i, 3] = nd['cAA']
+        node_params[i, 4] = nd['cAC']
+        node_params[i, 5] = nd['cCC']
+
+    N_cells = size * size
+    knn = min(k, N_nodes)
+    nx = node_xy[:, 0]   # (N_nodes,) — node x positions
+    ny = node_xy[:, 1]   # (N_nodes,) — node y positions
+
+    if knn == 1:
+        # Nearest-neighbour (Voronoi): one pass per node, keep best distance + owner.
+        best_dist = np.full(N_cells, np.inf, dtype='float64')
+        best_node = np.full(N_cells, -1, dtype=np.int64)
+        for j in range(N_nodes):
+            dx = _cell_x - nx[j]
+            dy = _cell_y - ny[j]
+            d = np.sqrt(dx * dx + dy * dy)
+            mask = d < best_dist
+            best_dist[mask] = d[mask]
+            best_node[mask] = j
+        out_a0.ravel()  [:] = node_params[best_node, 0]
+        out_alpha.ravel()[:] = node_params[best_node, 1]
+        out_gamma.ravel()[:] = node_params[best_node, 2]
+        out_cAA.ravel()  [:] = node_params[best_node, 3]
+        out_cAC.ravel()  [:] = node_params[best_node, 4]
+        out_cCC.ravel()  [:] = node_params[best_node, 5]
+        return
+
+    # k >= 2: column-wise distance build, then argpartition + IDW (same weighting).
+    dists = np.empty((N_cells, N_nodes), dtype='float64')
+    for j in range(N_nodes):
+        dx = _cell_x - nx[j]
+        dy = _cell_y - ny[j]
+        dists[:, j] = np.sqrt(dx * dx + dy * dy)
     knn_idx = np.argpartition(dists, knn, axis=1)[:, :knn]
-    k_dists = np.take_along_axis(dists, knn_idx, axis=1)          # (N_cells, knn)
+    k_dists = np.take_along_axis(dists, knn_idx, axis=1)
     eps = 1e-9
-    w = 1.0 / (k_dists * k_dists + eps)                          # inverse-square, p=2
-    w = w / w.sum(axis=1, keepdims=True)                         # normalize
+    w = 1.0 / (k_dists * k_dists + eps)
+    w = w / w.sum(axis=1, keepdims=True)
     avg_params = (node_params[knn_idx] * w[..., None]).sum(axis=1)
-    return avg_params.reshape(size, size, 6)
+    out_a0[:]  = avg_params[:, 0].reshape(size, size)
+    out_alpha[:] = avg_params[:, 1].reshape(size, size)
+    out_gamma[:] = avg_params[:, 2].reshape(size, size)
+    out_cAA[:]   = avg_params[:, 3].reshape(size, size)
+    out_cAC[:]   = avg_params[:, 4].reshape(size, size)
+    out_cCC[:]   = avg_params[:, 5].reshape(size, size)
 
 
 VIEW_SIZE = 1024
@@ -352,6 +400,20 @@ C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
 AC = np.zeros((size,size), dtype='int')
 last_change = np.full((size, size), -1, dtype=np.int64)
+
+# Pre-allocated parameter grids — reused across every compute_param_grids call.
+a0_grid = np.zeros((size, size), dtype='float64')
+alpha_grid = np.zeros((size, size), dtype='float64')
+gamma_grid = np.zeros((size, size), dtype='float64')
+cAA_grid = np.zeros((size, size), dtype='float64')
+cAC_grid = np.zeros((size, size), dtype='float64')
+cCC_grid = np.zeros((size, size), dtype='float64')
+
+# Precomputed per-cell coordinate vectors (row-major, shape (size*size,)).
+# _cell_x[i] = x-coord of cell i, _cell_y[i] = y-coord of cell i.
+# Depends only on `size`, which is constant, so built once.
+_cell_x = np.tile(np.arange(size, dtype='float64'), size)
+_cell_y = np.repeat(np.arange(size, dtype='float64'), size)
 
 # 1 queen
 # 2 N
@@ -376,28 +438,21 @@ C[0:-1, 0:2] = 4
 C[-2:-1, 0:-1] = 4
 C[0:-1, -2:-1] = 4
 
-k_nearest = 3
+k_nearest = 2
 
 # Compute per-cell parameter grids from current node positions
-param_grid = compute_param_grids(nodes, size, k=k_nearest)
-a0_grid = param_grid[:, :, 0].copy()
-alpha_grid = param_grid[:, :, 1].copy()
-gamma_grid = param_grid[:, :, 2].copy()
-cAA_grid = param_grid[:, :, 3].copy()
-cAC_grid = param_grid[:, :, 4].copy()
-cCC_grid = param_grid[:, :, 5].copy()
+compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(500):
+for tick in range(4000):
 
-    # snapshot for change detection (before dynamics modify C)
+    # snapshot for change detection
     C_pre = C.copy()
 
-    # ---- dynamics on the full grid (VIEW_SIZE == size) ----
-    promote_queens_njit(C, AC, ND, size)
-    remove_queens_njit(C, ND, size)
+    promote_queens_njit(C, size)
+    remove_queens_njit(C, size)
 
     birthAC_njit(C, AC, size)
     birthND_njit(C, ND, size)
@@ -413,13 +468,7 @@ for tick in range(500):
             for existing in range(new_id):
                 nodes.add_edge(new_id, existing)
             nodes.nodes[new_id]['chips'] = 0
-            param_grid = compute_param_grids(nodes, size, k=k_nearest)
-            a0_grid = param_grid[:, :, 0].copy()
-            alpha_grid = param_grid[:, :, 1].copy()
-            gamma_grid = param_grid[:, :, 2].copy()
-            cAA_grid = param_grid[:, :, 3].copy()
-            cAC_grid = param_grid[:, :, 4].copy()
-            cCC_grid = param_grid[:, :, 5].copy()
+            compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 110:
         new_id = len(nodes)
@@ -429,13 +478,7 @@ for tick in range(500):
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 120:
         new_id = len(nodes)
@@ -445,13 +488,7 @@ for tick in range(500):
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 130:
         new_id = len(nodes)
@@ -461,13 +498,7 @@ for tick in range(500):
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 140:
         new_id = len(nodes)
@@ -477,13 +508,7 @@ for tick in range(500):
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 150:
         new_id = len(nodes)
@@ -493,13 +518,7 @@ for tick in range(500):
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        param_grid = compute_param_grids(nodes, size, k=k_nearest)
-        a0_grid = param_grid[:, :, 0].copy()
-        alpha_grid = param_grid[:, :, 1].copy()
-        gamma_grid = param_grid[:, :, 2].copy()
-        cAA_grid = param_grid[:, :, 3].copy()
-        cAC_grid = param_grid[:, :, 4].copy()
-        cCC_grid = param_grid[:, :, 5].copy()
+        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     # ---- chip-firing dynamics on the parameter graph ----
     if tick%2 == 0:
@@ -529,7 +548,7 @@ for tick in range(500):
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
                 # 2. if too close to the collapse target, kick away from it
-                min_dist = 16.0
+                min_dist = 32.0
                 kx = nid_data['x'] - other_data['x']
                 ky = nid_data['y'] - other_data['y']
                 d = math.sqrt(kx * kx + ky * ky) + 1e-6
@@ -570,13 +589,7 @@ for tick in range(500):
                     for p in param_names:
                         nid_data[p] = max(0.5, min(nid_data[p], 8.0))
         if moved:
-            param_grid = compute_param_grids(nodes, size, k=k_nearest)
-            a0_grid = param_grid[:, :, 0].copy()
-            alpha_grid = param_grid[:, :, 1].copy()
-            gamma_grid = param_grid[:, :, 2].copy()
-            cAA_grid = param_grid[:, :, 3].copy()
-            cAC_grid = param_grid[:, :, 4].copy()
-            cCC_grid = param_grid[:, :, 5].copy()
+            compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick >= 200 and tick % 4 == 0:
         for nid in range(4):
@@ -595,7 +608,7 @@ for tick in range(500):
     AC = AC + 1 - ((C != 4) & (C != 5)) * 1
 
     #ss = random.choice([256])
-    ss = 64
+    ss = 128
 
     if tick % 2 == 0:
         off_y = 0
@@ -615,7 +628,7 @@ for tick in range(500):
     last_change[changed] = tick
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 500000
+    STALE_TICKS = 300
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -643,7 +656,7 @@ for tick in range(500):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([205, 140, 60], dtype='int')    # orange
+        COL_A = np.array([195, 140, 60], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         C_crop = C[:CROP, :CROP]
@@ -660,13 +673,29 @@ for tick in range(500):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 175, 205, 96)
+            EDGE_COLOR = (0, 165, 175, 124)
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             for (u, v) in nodes.edges():
                 xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
                 xv, yv = int(nodes.nodes[v]['x']), int(nodes.nodes[v]['y'])
+                if xu == 0 and yu == 0:
+                    continue
+                if xv == 0 and yv == 0:
+                    continue
+                if xu == size-1 and yu == size-1:
+                    continue
+                if xv == size-1 and yv == size-1:
+                    continue
+                if xu == 0 and yu == size-1:
+                    continue
+                if xv == 0 and yv == size-1:
+                    continue
+                if xu == size-1 and yu == 0:
+                    continue
+                if xv == size-1 and yv == 0:
+                    continue
                 draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
             img = Image.fromarray(frame.astype(np.uint8)).convert('RGBA')
             img = Image.alpha_composite(img, overlay)

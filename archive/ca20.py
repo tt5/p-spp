@@ -446,7 +446,7 @@ compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(500):
+for tick in range(2000):
 
     # snapshot for change detection (before dynamics modify C)
     C_pre = C.copy()
@@ -629,7 +629,7 @@ for tick in range(500):
     last_change[changed] = tick
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 500000
+    STALE_TICKS = 400
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -657,7 +657,7 @@ for tick in range(500):
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
         COL_D = np.array([80, 210, 255], dtype='int')
         COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([205, 140, 60], dtype='int')    # orange
+        COL_A = np.array([195, 140, 60], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
 
         C_crop = C[:CROP, :CROP]
@@ -674,13 +674,29 @@ for tick in range(500):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 175, 205, 96)
+            EDGE_COLOR = (0, 160, 190, 104)
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             for (u, v) in nodes.edges():
                 xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
                 xv, yv = int(nodes.nodes[v]['x']), int(nodes.nodes[v]['y'])
+                if xu == 0 and yu == 0:
+                    continue
+                if xv == 0 and yv == 0:
+                    continue
+                if xu == size-1 and yu == size-1:
+                    continue
+                if xv == size-1 and yv == size-1:
+                    continue
+                if xu == 0 and yu == size-1:
+                    continue
+                if xv == 0 and yv == size-1:
+                    continue
+                if xu == size-1 and yu == 0:
+                    continue
+                if xv == size-1 and yv == 0:
+                    continue
                 draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
             img = Image.fromarray(frame.astype(np.uint8)).convert('RGBA')
             img = Image.alpha_composite(img, overlay)
