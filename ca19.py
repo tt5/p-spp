@@ -392,30 +392,17 @@ framecount = 0
 print("time,", "N,", "D,", "A,", "C")
 for tick in range(500):
 
-    # ---- extract view from global grids ----
-    vy0 = 0
-    vy1 = vy0 + VIEW_SIZE
-    vx0 = 0
-    vx1 = vx0 + VIEW_SIZE
-    C_view   = C[vy0:vy1, vx0:vx1].copy()
-    C_view_pre = C_view.copy()
-    ND_view  = ND[vy0:vy1, vx0:vx1].copy()
-    AC_view  = AC[vy0:vy1, vx0:vx1].copy()
-    a0_view    = a0_grid[vy0:vy1, vx0:vx1].copy()
-    alpha_view = alpha_grid[vy0:vy1, vx0:vx1].copy()
-    gamma_view = gamma_grid[vy0:vy1, vx0:vx1].copy()
-    cAA_view   = cAA_grid[vy0:vy1, vx0:vx1].copy()
-    cAC_view   = cAC_grid[vy0:vy1, vx0:vx1].copy()
-    cCC_view   = cCC_grid[vy0:vy1, vx0:vx1].copy()
+    # snapshot for change detection (before dynamics modify C)
+    C_pre = C.copy()
 
-    # ---- dynamics on the view (runs at VIEW_SIZE) ----
-    promote_queens_njit(C_view, AC_view, ND_view, VIEW_SIZE)
-    remove_queens_njit(C_view, ND_view, VIEW_SIZE)
+    # ---- dynamics on the full grid (VIEW_SIZE == size) ----
+    promote_queens_njit(C, AC, ND, size)
+    remove_queens_njit(C, ND, size)
 
-    birthAC_njit(C_view, AC_view, VIEW_SIZE)
-    birthND_njit(C_view, ND_view, VIEW_SIZE)
-    eatC_njit(C_view, VIEW_SIZE, a0_view, alpha_view, gamma_view, cAC_view, cCC_view)
-    eatA_njit(C_view, VIEW_SIZE, a0_view, alpha_view, cAA_view, cAC_view)
+    birthAC_njit(C, AC, size)
+    birthND_njit(C, ND, size)
+    eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
+    eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
     if tick == 100:
         for i in range(1):
@@ -600,12 +587,12 @@ for tick in range(500):
                 chip_lending_move(nodes, nid)
 
     qenergy = 4
-    add_queen_energy_njit(C_view, ND_view, VIEW_SIZE, qenergy)
+    add_queen_energy_njit(C, ND, size, qenergy)
 
     maxclip = 3 + qenergy
 
-    ND_view = np.clip(ND_view - ((C_view != 2) & (C_view != 3)) * maxclip, 0, maxclip)
-    AC_view = AC_view + 1 - ((C_view != 4) & (C_view != 5)) * 1
+    ND = np.clip(ND - ((C != 2) & (C != 3)) * maxclip, 0, maxclip)
+    AC = AC + 1 - ((C != 4) & (C != 5)) * 1
 
     #ss = random.choice([256])
     ss = 64
@@ -617,20 +604,15 @@ for tick in range(500):
         off_y = ss // 2
         off_x = ss // 2
 
-    tumble_tiles_parallel_njit(ND_view, VIEW_SIZE, ss, off_y, off_x)
-    tumble_tiles_parallel_njit(AC_view, VIEW_SIZE, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(AC, size, ss, off_y, off_x)
 
-    ND_view = np.clip(ND_view, 0, 64)
-    AC_view = np.clip(AC_view, 0, 64)
-
-    # ---- write view back into global grids ----
-    C[vy0:vy1, vx0:vx1]  = C_view
-    ND[vy0:vy1, vx0:vx1] = ND_view
-    AC[vy0:vy1, vx0:vx1] = AC_view
+    ND = np.clip(ND, 0, 64)
+    AC = np.clip(AC, 0, 64)
 
     # record last_change for cells whose species changed during dynamics
-    changed = (C_view != C_view_pre)
-    last_change[vy0:vy1, vx0:vx1][changed] = tick
+    changed = (C != C_pre)
+    last_change[changed] = tick
 
     # ---- age-based cell conversion ----
     STALE_TICKS = 500000
