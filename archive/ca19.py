@@ -5,35 +5,10 @@ from numba import njit, prange
 import networkx as nx
 import imageio
 import numpy as np
+from chipfiring import CFGraph, CFDivisor
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
-
-# ---- chip-firing helpers for the simple parameter graph ----
-# Graph is simple (multiplicity 1), so valence(v) == degree(v).
-# lending_move(v):  chips[v]  -= degree(v)
-#                   for each neighbor u: chips[u] += 1
-# borrowing_move(v): chips[v] += degree(v)
-#                    for each neighbor u: chips[u] -= 1
-# Total chips are conserved by both moves.
-def chip_degree(nodes, nid):
-    return nodes.degree(nid)
-
-def chip_lending_move(nodes, nid):
-    deg = nodes.degree(nid)
-    if deg == 0:
-        return
-    nodes.nodes[nid]['chips'] -= deg
-    for nb in nodes.neighbors(nid):
-        nodes.nodes[nb]['chips'] += 1
-
-def chip_borrowing_move(nodes, nid):
-    deg = nodes.degree(nid)
-    if deg == 0:
-        return
-    nodes.nodes[nid]['chips'] += deg
-    for nb in nodes.neighbors(nid):
-        nodes.nodes[nb]['chips'] -= 1
 
 # Global grid size (must be defined before the parameter graph below).
 size = 1024
@@ -413,10 +388,18 @@ cCC_grid = param_grid[:, :, 5].copy()
 # Grid can be updated mid-simulation by modifying the nodes list and
 # re-computing param_grid (e.g., nodes.append([...]) then recompute).
 
-# ---- chip-firing state lives directly on nodes ----
-# Each node carries a 'chips' attribute. Initial chips are 0.
-for n in nodes.nodes():
-    nodes.nodes[n].setdefault('chips', 0)
+# ---- Chip-firing on the parameter graph (via chipfiring library) ----
+def build_cf_graph_from_nodes(nodes):
+    node_list = list(nodes.nodes())
+    vertex_names = set(str(n) for n in node_list)
+    edges = []
+    for i in range(len(node_list)):
+        for j in range(i + 1, len(node_list)):
+            edges.append((str(node_list[i]), str(node_list[j]), 1))
+    return CFGraph(vertex_names, edges)
+
+cf_graph = build_cf_graph_from_nodes(nodes)
+cf_divisor = CFDivisor(cf_graph, [(str(n), 0) for n in nodes.nodes()])
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
@@ -458,7 +441,10 @@ for tick in range(8000):
                            cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
             for existing in range(new_id):
                 nodes.add_edge(new_id, existing)
-            nodes.nodes[new_id]['chips'] = 0
+            old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+            cf_graph = build_cf_graph_from_nodes(nodes)
+            new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+            cf_divisor = CFDivisor(cf_graph, new_degrees)
             param_grid = compute_param_grids(nodes, size, k=k_nearest)
             a0_grid = param_grid[:, :, 0].copy()
             alpha_grid = param_grid[:, :, 1].copy()
@@ -474,7 +460,10 @@ for tick in range(8000):
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -490,7 +479,10 @@ for tick in range(8000):
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -506,7 +498,10 @@ for tick in range(8000):
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -522,7 +517,10 @@ for tick in range(8000):
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -538,7 +536,10 @@ for tick in range(8000):
                        cAA=random.randint(5, 80)/10, cAC=random.randint(5, 80)/10, cCC=random.randint(5, 80)/10)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         param_grid = compute_param_grids(nodes, size, k=k_nearest)
         a0_grid = param_grid[:, :, 0].copy()
         alpha_grid = param_grid[:, :, 1].copy()
@@ -549,13 +550,15 @@ for tick in range(8000):
 
     # ---- chip-firing dynamics on the parameter graph ----
     if tick%2 == 0:
-        for nid in list(nodes.nodes()):
+        for v in cf_graph.vertices:
+            nid = int(str(v))
             if nid < 4:
                 continue
             nx_node = nodes.nodes[nid]
             x, y = int(nx_node['x']), int(nx_node['y'])
+            #if 0 <= y < size and 0 <= x < size and (tick-last_change[y, x]) >= 5 and cf_divisor.get_degree(str(v)) >= 0:
             if 0 <= y < size and 0 <= x < size and (C[y, x]) == 4:
-                chip_lending_move(nodes, nid)
+                cf_divisor.lending_move(str(v))
 
     # For each non-starting node: delete one edge; if only one
     # edge remains, move to the midpoint of that edge, then if the new
@@ -610,7 +613,7 @@ for tick in range(8000):
                 def edge_key(n):
                     dx = nodes.nodes[nid]['x'] - nodes.nodes[n]['x']
                     dy = nodes.nodes[nid]['y'] - nodes.nodes[n]['y']
-                    return (nodes.nodes[n]['chips'], -(dx*dx + dy*dy))
+                    return (cf_divisor.get_degree(str(n)), -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
                 # check for a tie: does any other neighbor share the victim's key?
@@ -629,6 +632,11 @@ for tick in range(8000):
                     nid_data[mutate_param] += random.choice([-0.1, 0.1])
                     for p in param_names:
                         nid_data[p] = max(0.5, min(nid_data[p], 8.0))
+        # rebuild chip-firing graph and recompute parameter grids
+        old_degrees = {str(n): cf_divisor.get_degree(str(n)) for n in cf_graph.vertices}
+        cf_graph = build_cf_graph_from_nodes(nodes)
+        new_degrees = [(str(n), old_degrees.get(str(n), 0)) for n in nodes.nodes()]
+        cf_divisor = CFDivisor(cf_graph, new_degrees)
         if moved:
             param_grid = compute_param_grids(nodes, size, k=k_nearest)
             a0_grid = param_grid[:, :, 0].copy()
@@ -640,11 +648,11 @@ for tick in range(8000):
 
     if tick >= 200 and tick % 4 == 0:
         for nid in range(4):
-            #print(f"{nid} {nodes.nodes[nid]['chips']}")
-            if nodes.nodes[nid]['chips'] < 0:
-                chip_borrowing_move(nodes, nid)
-            elif nodes.nodes[nid]['chips'] > 10:
-                chip_lending_move(nodes, nid)
+            #print(f"{nid} {cf_divisor.get_degree(str(nid))}")
+            if cf_divisor.get_degree(str(nid)) < 0:
+                cf_divisor.borrowing_move(str(nid))
+            elif cf_divisor.get_degree(str(nid)) > 10:
+                cf_divisor.lending_move(str(nid))
 
     qenergy = 4
     add_queen_energy_njit(C_view, ND_view, AC_view, VIEW_SIZE, qenergy)
@@ -755,6 +763,11 @@ for tick in range(8000):
         nA = np.sum(C == 4)
         nC = np.sum(C == 5)
         print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
+        #print(f"({framecount} {tick})")
+        #for v in cf_graph.vertices:
+        #    nid = int(str(v))
+        #    print(f"({v}) {cf_divisor.get_degree(str(v))}, ", end='')
+        #print("---")
 
                 
         writer.append_data(frame.astype(np.uint8))
