@@ -626,9 +626,10 @@ for tick in range(4000):
     # record last_change for cells whose species changed during dynamics
     changed = (C != C_pre)
     last_change[changed] = tick
+    last_change = last_change + (C == 3) * 1
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 300
+    STALE_TICKS = 200
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
@@ -673,7 +674,7 @@ for tick in range(4000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 165, 175, 124)
+            EDGE_COLOR = (0, 160, 170, 132)
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
