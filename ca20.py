@@ -321,6 +321,10 @@ def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, o
     """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by IDW (p=2) over the
     k nearest nodes, writing results into the six pre-allocated (size, size) arrays.
 
+    Distances are built one node at a time (no (N_cells, N_nodes, 2) broadcast).
+    For k = 1 this is a nearest-neighbour (Voronoi) assignment; for k >= 2 the same
+    inverse-square weighting as before is applied.
+
     nodes: networkx graph where each node carries x, y, a0, alpha, gamma, cAA, cAC, cCC.
     out_*: float64 arrays of shape (size, size), reused across calls.
     """
@@ -329,20 +333,56 @@ def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, o
         out_cAA.fill(0); out_cAC.fill(0); out_cCC.fill(0)
         return
     node_ids = list(nodes.nodes())
-    node_xy = np.array([[nodes.nodes[n]['x'], nodes.nodes[n]['y']] for n in node_ids], dtype='float64')
-    node_params = np.array([[nodes.nodes[n]['a0'], nodes.nodes[n]['alpha'], nodes.nodes[n]['gamma'],
-                             nodes.nodes[n]['cAA'], nodes.nodes[n]['cAC'], nodes.nodes[n]['cCC']]
-                            for n in node_ids], dtype='float64')
-    cell_coords = np.stack(np.meshgrid(np.arange(size), np.arange(size), indexing='ij'), axis=-1).reshape(-1, 2).astype('float64')
-    diffs = cell_coords[:, None, :] - node_xy[None, :, :]
-    dists = np.sqrt((diffs ** 2).sum(axis=2))
-    knn = min(k, len(nodes))
+    N_nodes = len(node_ids)
+    node_xy = np.empty((N_nodes, 2), dtype='float64')
+    node_params = np.empty((N_nodes, 6), dtype='float64')
+    for i, nid in enumerate(node_ids):
+        nd = nodes.nodes[nid]
+        node_xy[i, 0] = nd['x']
+        node_xy[i, 1] = nd['y']
+        node_params[i, 0] = nd['a0']
+        node_params[i, 1] = nd['alpha']
+        node_params[i, 2] = nd['gamma']
+        node_params[i, 3] = nd['cAA']
+        node_params[i, 4] = nd['cAC']
+        node_params[i, 5] = nd['cCC']
+
+    N_cells = size * size
+    knn = min(k, N_nodes)
+    nx = node_xy[:, 0]   # (N_nodes,) — node x positions
+    ny = node_xy[:, 1]   # (N_nodes,) — node y positions
+
+    if knn == 1:
+        # Nearest-neighbour (Voronoi): one pass per node, keep best distance + owner.
+        best_dist = np.full(N_cells, np.inf, dtype='float64')
+        best_node = np.full(N_cells, -1, dtype=np.int64)
+        for j in range(N_nodes):
+            dx = _cell_x - nx[j]
+            dy = _cell_y - ny[j]
+            d = np.sqrt(dx * dx + dy * dy)
+            mask = d < best_dist
+            best_dist[mask] = d[mask]
+            best_node[mask] = j
+        out_a0.ravel()  [:] = node_params[best_node, 0]
+        out_alpha.ravel()[:] = node_params[best_node, 1]
+        out_gamma.ravel()[:] = node_params[best_node, 2]
+        out_cAA.ravel()  [:] = node_params[best_node, 3]
+        out_cAC.ravel()  [:] = node_params[best_node, 4]
+        out_cCC.ravel()  [:] = node_params[best_node, 5]
+        return
+
+    # k >= 2: column-wise distance build, then argpartition + IDW (same weighting).
+    dists = np.empty((N_cells, N_nodes), dtype='float64')
+    for j in range(N_nodes):
+        dx = _cell_x - nx[j]
+        dy = _cell_y - ny[j]
+        dists[:, j] = np.sqrt(dx * dx + dy * dy)
     knn_idx = np.argpartition(dists, knn, axis=1)[:, :knn]
-    k_dists = np.take_along_axis(dists, knn_idx, axis=1)          # (N_cells, knn)
+    k_dists = np.take_along_axis(dists, knn_idx, axis=1)
     eps = 1e-9
-    w = 1.0 / (k_dists * k_dists + eps)                          # inverse-square, p=2
-    w = w / w.sum(axis=1, keepdims=True)                         # normalize
-    avg_params = (node_params[knn_idx] * w[..., None]).sum(axis=1)  # (N_cells, 6)
+    w = 1.0 / (k_dists * k_dists + eps)
+    w = w / w.sum(axis=1, keepdims=True)
+    avg_params = (node_params[knn_idx] * w[..., None]).sum(axis=1)
     out_a0[:]  = avg_params[:, 0].reshape(size, size)
     out_alpha[:] = avg_params[:, 1].reshape(size, size)
     out_gamma[:] = avg_params[:, 2].reshape(size, size)
@@ -369,6 +409,12 @@ cAA_grid = np.zeros((size, size), dtype='float64')
 cAC_grid = np.zeros((size, size), dtype='float64')
 cCC_grid = np.zeros((size, size), dtype='float64')
 
+# Precomputed per-cell coordinate vectors (row-major, shape (size*size,)).
+# _cell_x[i] = x-coord of cell i, _cell_y[i] = y-coord of cell i.
+# Depends only on `size`, which is constant, so built once.
+_cell_x = np.tile(np.arange(size, dtype='float64'), size)
+_cell_y = np.repeat(np.arange(size, dtype='float64'), size)
+
 # 1 queen
 # 2 N
 # 3 D
@@ -392,7 +438,7 @@ C[0:-1, 0:2] = 4
 C[-2:-1, 0:-1] = 4
 C[0:-1, -2:-1] = 4
 
-k_nearest = 3
+k_nearest = 1
 
 # Compute per-cell parameter grids from current node positions
 compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
