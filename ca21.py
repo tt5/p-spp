@@ -261,29 +261,6 @@ def birthND_njit(C, ND, size):
     for k in range(ys.shape[0]):
         y = ys[k]
         x = xs[k]
-        north = south = east = west = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        nN = 0
-        if north == 2: nN += 1
-        if south == 2: nN += 1
-        if east == 2: nN += 1
-        if west == 2: nN += 1
-        if nN >= 3:
-            if C[y,x] != 1:
-                C[y,x] = 3
-        else:
-            if C[y,x] != 1:
-                C[y,x] = 2
-
-@njit
-def birthAC_njit(C, AC, size):
-    ys, xs = np.where(AC > 0)
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
         if C[y,x] == 2 or C[y,x] == 3 or C[y,x] == 1:
             continue
         north = south = east = west = 0
@@ -315,6 +292,25 @@ def birthAC_njit(C, AC, size):
                 C[y,x] = 5
             else:
                 C[y,x] = 4
+    for k in range(ys.shape[0]):
+        y = ys[k]
+        x = xs[k]
+        north = south = east = west = 0
+        if y>0: north = C[y-1,x]
+        if y<size-1: south = C[y+1,x]
+        if x<size-1: east = C[y,x+1]
+        if x>0: west = C[y,x-1]
+        nN = 0
+        if north == 2: nN += 1
+        if south == 2: nN += 1
+        if east == 2: nN += 1
+        if west == 2: nN += 1
+        if nN >= 3:
+            if C[y,x] != 1:
+                C[y,x] = 3
+        else:
+            if C[y,x] != 1:
+                C[y,x] = 2
 
 
 def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
@@ -454,7 +450,6 @@ for tick in range(4000):
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
 
-    birthAC_njit(C, AC, size)
     birthND_njit(C, ND, size)
     eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
     eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
@@ -548,7 +543,7 @@ for tick in range(4000):
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
                 # 2. if too close to the collapse target, kick away from it
-                min_dist = 32.0
+                min_dist = 256.0
                 kx = nid_data['x'] - other_data['x']
                 ky = nid_data['y'] - other_data['y']
                 d = math.sqrt(kx * kx + ky * ky) + 1e-6
@@ -607,7 +602,6 @@ for tick in range(4000):
     ND = np.clip(ND - ((C != 2) & (C != 3)) * maxclip, 0, maxclip)
     AC = AC + 1 - ((C != 4) & (C != 5)) * 1
 
-    #ss = random.choice([256])
     ss = 128
 
     if tick % 2 == 0:
@@ -620,8 +614,8 @@ for tick in range(4000):
     tumble_tiles_parallel_njit(ND, size, ss, off_y, off_x)
     tumble_tiles_parallel_njit(AC, size, ss, off_y, off_x)
 
-    ND = np.clip(ND, 0, 64)
-    AC = np.clip(AC, 0, 64)
+    ND = np.clip(ND, 0, 1024)
+    AC = np.clip(ND, 0, 1024)
 
     # record last_change for cells whose species changed during dynamics
     changed = (C != C_pre)
@@ -629,7 +623,7 @@ for tick in range(4000):
     last_change = last_change + (C == 3) * 1
 
     # ---- age-based cell conversion ----
-    STALE_TICKS = 200
+    STALE_TICKS = 300000
     stale_mask = last_change <= tick - STALE_TICKS
     if stale_mask.any():
         C[stale_mask] = 2
