@@ -41,7 +41,7 @@ writer = imageio.get_writer(
 
 @njit
 def tumble_njit(spile):
-    for i in range(256):
+    for i in range(99999):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -204,25 +204,20 @@ def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
             if j == 3:
-                if killed == True:
-                    break
-                if pkill < 0.5:
-                    isPkill = False
-                    break
                 dy, dx = deltas[i]
                 ny = y + dy
                 nx = x + dx
                 C[ny, nx] = 4
                 killed = True
-                break
+        if killed == True:
+            continue
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-            if j == 5 and nC>=3:
+            if j == 5:
                 dy, dx = deltas[i]
                 ny = y + dy
                 nx = x + dx
                 C[ny, nx] = 4
-                break
 
 @njit
 def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
@@ -261,6 +256,25 @@ def birthND_njit(C, ND, size):
     for k in range(ys.shape[0]):
         y = ys[k]
         x = xs[k]
+        north = south = east = west = 0
+        if y>0: north = C[y-1,x]
+        if y<size-1: south = C[y+1,x]
+        if x<size-1: east = C[y,x+1]
+        if x>0: west = C[y,x-1]
+        nN = 0
+        if north == 2: nN += 1
+        if south == 2: nN += 1
+        if east == 2: nN += 1
+        if west == 2: nN += 1
+        if nN >= 3:
+            if C[y,x] != 1:
+                C[y,x] = 3
+        else:
+            if C[y,x] != 1:
+                C[y,x] = 2
+    for k in range(ys.shape[0]):
+        y = ys[k]
+        x = xs[k]
         if C[y,x] == 2 or C[y,x] == 3 or C[y,x] == 1:
             continue
         north = south = east = west = 0
@@ -287,30 +301,6 @@ def birthND_njit(C, ND, size):
             C[y,x] = 4
         elif nA < nC:
             C[y,x] = 5
-        else:
-            if nN > 0:
-                C[y,x] = 5
-            else:
-                C[y,x] = 4
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
-        north = south = east = west = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        nN = 0
-        if north == 2: nN += 1
-        if south == 2: nN += 1
-        if east == 2: nN += 1
-        if west == 2: nN += 1
-        if nN >= 3:
-            if C[y,x] != 1:
-                C[y,x] = 3
-        else:
-            if C[y,x] != 1:
-                C[y,x] = 2
 
 
 def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
@@ -596,7 +586,7 @@ for tick in range(2000):
 
     ND = np.clip(ND - ((C != 2) & (C != 3)) * maxclip, 0, maxclip)
 
-    ss = 128
+    ss = 64
 
     if tick % 2 == 0:
         off_y = 0
@@ -606,8 +596,6 @@ for tick in range(2000):
         off_x = ss // 2
 
     tumble_tiles_parallel_njit(ND, size, ss, off_y, off_x)
-
-    ND = np.clip(ND, 0, 1024)
 
     if tick%1==0 and tick>0:
         framecount += 1
@@ -646,7 +634,7 @@ for tick in range(2000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 160, 170, 132)
+            EDGE_COLOR = (0, 155, 165, 132)
             EDGE_WIDTH = 4
             overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
