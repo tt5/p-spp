@@ -1,101 +1,52 @@
-# Discrete Dynamical System
+# Sandpile Cellular Automaton
 
-cellular automaton
+E, 0, empty  
+Q, 1, queen  
+N, 2, normal prey  
+D, 3, defector prey  
+A, 4, aggressive predator  
+C, 5, cooperative predator
 
-## Predator-Prey
+cell matrix  
+ND, energy matrix  
+parameter matrices  
 
-energy terrain:  
-AC, ND
-
-cell map:  
-C (0 (empty), ..., 5)
-
-pkill for A:
+pkillA:
 
 $$\frac{a_0 + \alpha n_{\text{D}}} {1 + c_{\text{AA}} n_{\text{A}} + c_{\text{AC}} n_{\text{C}}}$$
 
-pkill for C:
+pkillC:
 
 $$\frac{a_0 + \alpha n_{\text{D}}} {1 + c_{\text{CC}} - \gamma n_C + c_{\text{AC}}  n_{\text{A}}}$$
 
-## Parameters
+# Game Loop
 
-size (>= 192)
+promote queens:
+If D surrounded by N -> Q
 
-$a_0$ base attack  
-$\alpha$ defector help  
-$\gamma$ C cooperation
+remove queens:
+If Q surrounded by A or C -> A
 
-interference:
-$c_{\text{AA}}$,
-$c_{\text{CC}}$,
-$c_{\text{AC}}$
+birth:
+where positive energy  
+where no Q  
+nN >= 3 -> D  
+nN < 3 -> N
 
-## Species
+eat C
+pkillC N
 
-prey:  
-2 (N, Normal)  
-3 (D, Defector)  
+eat A:
+pkillA N  
+if no N eat all D  
+if no N or D eat all C
 
-predators:  
-4 (A, Aggressive)  
-5 (C, Cooperative)  
+fire and move parameter graph
 
-promoted (prey -> predator):  
-1 (Q, queen)
+add energy:
++4 where D
 
-## Growth
+mask ND:
+keep only energy where prey
 
-Queen birth:
-
-```txt
- N
-NQN
- N
-```
-
-Queen death:
-
-```txt
-   C/A
-C/A C C/A
-   C/A
-```
-
-predators:  
-where energy is positive and not occupied by prey or queen.  
-nA > nC -> 4  
-nA < nC -> 5  
-tie:  
-nN > 0 -> 5  
-else -> 4
-
-prey:  
-where energy is positive and not occupied by queen.  
-nN >= 3 -> 3   
-else -> 2
-
-## Eat
-
-### Cooperative
-
-pkill, all N, -> 5
-
-### Aggressive
-
-pkill, all N  
-else (no N):  
-pkill, one D  
-and if nC >= 3: one C  
-
--> 4
-
-## Sandpile
-
-Add 4 energy to ND where queens are.
-
-Remove all energy from ND where no prey.
-
-Add 1 energy to AC where predators.
-
-tumble (64x64)
+tumble ND
