@@ -14,6 +14,7 @@ If any node moved, the parameter grids are recomputed.
 For each non-corner node: if it has exactly one neighbor, it moves to the midpoint between itself and that neighbor; if the resulting distance is below the current collapse distance, it is kicked away from that neighbor just enough to reach that distance (plus the current kick buffer), then it reconnects to all other nodes.
 If it has more than one neighbor, it deletes the edge to the neighbor with the highest chip count, breaking ties by closest Euclidean distance.
 
-### Mutation
+## Mutation
 
-When a tie occurs the mutation block runs: the node adopts the victim's full parameter set, keeps one randomly chosen parameter from its own previous value, and mutates one randomly chosen parameter by ±0.1.
+On node deletion.
+The node adopts the other nodes's full parameter set, keeps one randomly chosen parameter from its own previous value, and mutates one randomly chosen parameter by ±0.1.
