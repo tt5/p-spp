@@ -272,35 +272,6 @@ def birthND_njit(C, ND, size):
         else:
             if C[y,x] != 1:
                 C[y,x] = 2
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
-        if C[y,x] == 2 or C[y,x] == 3 or C[y,x] == 1:
-            continue
-        north = south = east = west = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        nA = 0
-        nC = 0
-        nN = 0
-        if north == 4: nA += 1
-        elif north == 5: nC += 1
-        elif north == 2: nN += 1
-        if south == 4: nA += 1
-        elif south == 5: nC += 1
-        elif south == 2: nN += 1
-        if east == 4: nA += 1
-        elif east == 5: nC += 1
-        elif east == 2: nN += 1
-        if west == 4: nA += 1
-        elif west == 5: nC += 1
-        elif west == 2: nN += 1
-        if nA > nC:
-            C[y,x] = 4
-        elif nA < nC:
-            C[y,x] = 5
 
 
 def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
@@ -419,10 +390,10 @@ for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)])
 C = C+3
 C[0:2, 0:-1] = 4
 C[0:-1, 0:2] = 4
-C[-2:-1, 0:-1] = 4
-C[0:-1, -2:-1] = 4
+C[-3:-1, 0:-1] = 4
+C[0:-1, -3:-1] = 4
 
-k_nearest = 2
+k_nearest = 1
 
 # Compute per-cell parameter grids from current node positions
 compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
@@ -430,7 +401,7 @@ compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(8000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -501,13 +472,13 @@ for tick in range(2000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     # ---- chip-firing dynamics on the parameter graph ----
-    if tick%2 == 0:
+    if tick%3 == 0:
         for nid in list(nodes.nodes()):
             if nid < 4:
                 continue
             nx_node = nodes.nodes[nid]
             x, y = int(nx_node['x']), int(nx_node['y'])
-            if 0 <= y < size and 0 <= x < size and (C[y, x]) == 4:
+            if 0 <= y < size and 0 <= x < size and (C[y, x]) == 2:
                 chip_lending_move(nodes, nid)
 
     # For each non-starting node: delete one edge; if only one
@@ -604,14 +575,12 @@ for tick in range(2000):
         # Crop the grid to a 1024x1024 square and letterbox it into the frame,
         # centered with black padding.
 
-        VF_H, VF_W = VIDEO_H, VIDEO_W          # video frame dimensions
-        CROP = 1024                       # grid crop size (fits in both dims)
-        OFFY = (VF_H - CROP) // 2        # 28  vertical offset into the frame
-        OFFX = (VF_W - CROP) // 2        # 448 horizontal offset into the frame
+        OFFY = (VIDEO_H - size) // 2
+        OFFX = (VIDEO_W - size) // 2
 
-        out = np.zeros((VF_H, VF_W, 3), dtype='int')
+        out = np.zeros((VIDEO_H, VIDEO_W, 3), dtype='int')
 
-        frame = np.zeros((CROP, CROP, 3), dtype='int')
+        frame = np.zeros((size, size, 3), dtype='int')
 
         # species palette (R, G, B)
         COL_Q = np.array([255, 224, 110], dtype='int')   # gold
@@ -619,11 +588,11 @@ for tick in range(2000):
         COL_N = np.array([0, 0, 0], dtype='int')
         COL_A = np.array([195, 140, 60], dtype='int')    # orange
         COL_C = np.array([230, 70, 180], dtype='int')    # magenta
+        COL_E = np.array([255, 255, 255], dtype='int')
 
-        C_crop = C[:CROP, :CROP]
-        for mask, col in [(C_crop == 1, COL_Q), (C_crop == 2, COL_N),
-                          (C_crop == 3, COL_D), (C_crop == 4, COL_A),
-                          (C_crop == 5, COL_C)]:
+        for mask, col in [(C == 1, COL_Q), (C == 2, COL_N),
+                          (C == 3, COL_D), (C == 4, COL_A),
+                          (C == 5, COL_C), (C == 0, COL_E)]:
             frame[mask] = col
 
         frame = np.clip(frame, 0, 255)
@@ -634,9 +603,9 @@ for tick in range(2000):
         # directly.  PIL clips lines to the overlay image bounds automatically.
         try:
             from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 155, 165, 132)
+            EDGE_COLOR = (0, 145, 155, 136)
             EDGE_WIDTH = 4
-            overlay = Image.new('RGBA', (CROP, CROP), (0, 0, 0, 0))
+            overlay = Image.new('RGBA', (size, size), (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
             for (u, v) in nodes.edges():
                 xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
@@ -665,7 +634,7 @@ for tick in range(2000):
             print(f"[graph-overlay skipped] {exc}")
 
         # letterbox: write the square crop into the center of the 1920x1080 frame
-        out[OFFY:OFFY+CROP, OFFX:OFFX+CROP, :] = frame
+        out[OFFY:OFFY+size, OFFX:OFFX+size, :] = frame
         
         frame = out
 
