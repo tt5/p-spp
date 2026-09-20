@@ -401,7 +401,7 @@ compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(4000):
+for tick in range(8000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -411,12 +411,12 @@ for tick in range(4000):
     eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
     if tick == 100:
-        a0=random.randint(5, 20)/10
-        alpha=random.randint(5, 20)/10
-        gamma=random.randint(5, 80)/10
-        cAA=random.randint(5, 80)/10
-        cAC=random.randint(5, 80)/10
-        cCC=random.randint(5, 80)/10
+        a0=0.5
+        alpha=1.0
+        gamma=1.0
+        cAA=1.0
+        cAC=1.0
+        cCC=1.0
         print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
@@ -427,12 +427,12 @@ for tick in range(4000):
 
 
     if tick == 110:
-        a0=random.randint(5, 20)/10
-        alpha=random.randint(5, 20)/10
-        gamma=random.randint(5, 80)/10
-        cAA=random.randint(5, 80)/10
-        cAC=random.randint(5, 80)/10
-        cCC=random.randint(5, 80)/10
+        a0=0.5
+        alpha=1.0
+        gamma=1.0
+        cAA=1.0
+        cAC=1.0
+        cCC=1.0
         print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
@@ -442,12 +442,12 @@ for tick in range(4000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 120:
-        a0=random.randint(5, 20)/10
-        alpha=random.randint(5, 20)/10
-        gamma=random.randint(5, 80)/10
-        cAA=random.randint(5, 80)/10
-        cAC=random.randint(5, 80)/10
-        cCC=random.randint(5, 80)/10
+        a0=0.5
+        alpha=1.0
+        gamma=1.0
+        cAA=1.0
+        cAC=1.0
+        cCC=1.0
         print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
@@ -457,12 +457,12 @@ for tick in range(4000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 130:
-        a0=random.randint(5, 20)/10
-        alpha=random.randint(5, 20)/10
-        gamma=random.randint(5, 80)/10
-        cAA=random.randint(5, 80)/10
-        cAC=random.randint(5, 80)/10
-        cCC=random.randint(5, 80)/10
+        a0=0.5
+        alpha=1.0
+        gamma=1.0
+        cAA=1.0
+        cAC=1.0
+        cCC=1.0
         print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
@@ -472,12 +472,12 @@ for tick in range(4000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 140:
-        a0=random.randint(5, 20)/10
-        alpha=random.randint(5, 20)/10
-        gamma=random.randint(5, 80)/10
-        cAA=random.randint(5, 80)/10
-        cAC=random.randint(5, 80)/10
-        cCC=random.randint(5, 80)/10
+        a0=0.5
+        alpha=1.0
+        gamma=1.0
+        cAA=1.0
+        cAC=1.0
+        cCC=1.0
         print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
@@ -487,12 +487,12 @@ for tick in range(4000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 150:
-        a0=random.randint(5, 20)/10
-        alpha=random.randint(5, 20)/10
-        gamma=random.randint(5, 80)/10
-        cAA=random.randint(5, 80)/10
-        cAC=random.randint(5, 80)/10
-        cCC=random.randint(5, 80)/10
+        a0=0.5
+        alpha=1.0
+        gamma=1.0
+        cAA=1.0
+        cAC=1.0
+        cCC=1.0
         print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
@@ -542,6 +542,24 @@ for tick in range(4000):
                 for other_nid in nodes.nodes():
                     if other_nid != nid:
                         nodes.add_edge(nid, other_nid)
+                compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
+                # mutation
+                if tick>300:
+                    print(f"- mutation {nid} {tick} - ")
+                    print("old data", end='')
+                    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
+                    old_params = {p: nid_data[p] for p in param_names}
+                    print(f"{old_params}")
+                    for p in param_names:
+                        nid_data[p] = other_data[p]
+                    keep_param = random.choice(param_names)
+                    nid_data[keep_param] = old_params[keep_param]
+                    mutate_param = random.choice(param_names)
+                    nid_data[mutate_param] += random.choice([-0.1, 0.1])
+                    for p in param_names:
+                        print(f"{p}: {nid_data[p]}, ", end='')
+                        nid_data[p] = max(0.5, min(nid_data[p], 8.0))
+                    print("---")
             elif len(neighbors) > 1:
                 # delete the edge to the neighbor with the highest chip count;
                 # ties broken by shortest distance to nid; parameter dynamics
@@ -553,25 +571,6 @@ for tick in range(4000):
                     return (nodes.nodes[n]['chips'], -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
-                ## mutation
-                #victim_chips = nodes.nodes[victim]['chips']
-                #is_tied = any(nodes.nodes[n]['chips'] == victim_chips for n in neighbors if n != victim)
-                #if is_tied:
-                #    print("--- mutation")
-                #    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
-                #    nid_data = nodes.nodes[nid]
-                #    victim_data = nodes.nodes[victim]
-                #    old_params = {p: nid_data[p] for p in param_names}
-                #    for p in param_names:
-                #        nid_data[p] = victim_data[p]
-                #    keep_param = random.choice(param_names)
-                #    nid_data[keep_param] = old_params[keep_param]
-                #    mutate_param = random.choice(param_names)
-                #    nid_data[mutate_param] += random.choice([-0.1, 0.1])
-                #    for p in param_names:
-                #        nid_data[p] = max(0.5, min(nid_data[p], 8.0))
-        if moved:
-            compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick >= 200 and tick % 4 == 0:
         for nid in range(4):
