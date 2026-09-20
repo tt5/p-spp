@@ -523,9 +523,9 @@ for tick in range(2000):
                     return (nodes.nodes[n]['chips'], -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
-                # check for a tie: does any other neighbor share the victim's key?
-                victim_key = edge_key(victim)
-                is_tied = any(edge_key(n) == victim_key for n in neighbors if n != victim)
+                # check for a tie: does any other neighbor share the victim's chip count?
+                victim_chips = nodes.nodes[victim]['chips']
+                is_tied = any(nodes.nodes[n]['chips'] == victim_chips for n in neighbors if n != victim)
                 if is_tied:
                     param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
                     nid_data = nodes.nodes[nid]
