@@ -401,7 +401,7 @@ compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(4000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -523,22 +523,23 @@ for tick in range(2000):
                     return (nodes.nodes[n]['chips'], -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
-                # check for a tie: does any other neighbor share the victim's chip count?
+                ## mutation
                 victim_chips = nodes.nodes[victim]['chips']
                 is_tied = any(nodes.nodes[n]['chips'] == victim_chips for n in neighbors if n != victim)
                 if is_tied:
-                    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
-                    nid_data = nodes.nodes[nid]
-                    victim_data = nodes.nodes[victim]
-                    old_params = {p: nid_data[p] for p in param_names}
-                    for p in param_names:
-                        nid_data[p] = victim_data[p]
-                    keep_param = random.choice(param_names)
-                    nid_data[keep_param] = old_params[keep_param]
-                    mutate_param = random.choice(param_names)
-                    nid_data[mutate_param] += random.choice([-0.1, 0.1])
-                    for p in param_names:
-                        nid_data[p] = max(0.5, min(nid_data[p], 8.0))
+                    print("--- mutation")
+                #    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
+                #    nid_data = nodes.nodes[nid]
+                #    victim_data = nodes.nodes[victim]
+                #    old_params = {p: nid_data[p] for p in param_names}
+                #    for p in param_names:
+                #        nid_data[p] = victim_data[p]
+                #    keep_param = random.choice(param_names)
+                #    nid_data[keep_param] = old_params[keep_param]
+                #    mutate_param = random.choice(param_names)
+                #    nid_data[mutate_param] += random.choice([-0.1, 0.1])
+                #    for p in param_names:
+                #        nid_data[p] = max(0.5, min(nid_data[p], 8.0))
         if moved:
             compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
