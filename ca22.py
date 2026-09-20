@@ -401,7 +401,7 @@ compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(8000):
+for tick in range(2000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -557,16 +557,7 @@ for tick in range(8000):
 
     ND = np.clip(ND - ((C != 2) & (C != 3)) * maxclip, 0, maxclip)
 
-    ss = 64
-
-    if tick % 2 == 0:
-        off_y = 0
-        off_x = 0
-    else:
-        off_y = ss // 2
-        off_x = ss // 2
-
-    tumble_tiles_parallel_njit(ND, size, ss, off_y, off_x)
+    tumble_tiles_parallel_njit(ND, size, 64, 0, 0)
 
     if tick%1==0 and tick>0:
         framecount += 1
