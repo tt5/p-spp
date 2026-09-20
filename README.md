@@ -19,13 +19,18 @@ pkillC:
 
 $$\frac{a_0 + \alpha n_{\text{D}}} {1 + c_{\text{CC}} - \gamma n_C + c_{\text{AC}}  n_{\text{A}}}$$
 
+pkill threshold 0.5
+
+eating: 8 cell neighborhood
+birth: Von-Neumann (4) neighborhood
+
 # Game Loop
 
 promote queens:
 If D surrounded by N -> Q
 
 remove queens:
-If Q surrounded by A or C -> A
+If Q surrounded by A or surrounded by C -> A
 
 birth:
 where positive energy  
@@ -33,7 +38,7 @@ where no Q
 nN >= 3 -> D  
 nN < 3 -> N
 
-eat C
+eat C:
 pkillC N
 
 eat A:
@@ -49,4 +54,4 @@ add energy:
 mask ND:
 keep only energy where prey
 
-tumble ND
+tumble ND (tiles of 64x64)
