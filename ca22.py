@@ -398,10 +398,16 @@ k_nearest = 1
 # Compute per-cell parameter grids from current node positions
 compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
+a0 = 0.5
+alpha = 1.8
+gamma = 1.0
+cAA = 8.0
+cAC = 2.0
+cCC = 1.0
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(5000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -411,13 +417,6 @@ for tick in range(2000):
     eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
     if tick == 100:
-        a0=0.4
-        alpha=1.0
-        gamma=1.0
-        cAA=1.0
-        cAC=1.0
-        cCC=1.0
-        print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
@@ -427,13 +426,6 @@ for tick in range(2000):
 
 
     if tick == 110:
-        a0=0.3
-        alpha=1.0
-        gamma=1.0
-        cAA=1.0
-        cAC=1.0
-        cCC=1.0
-        print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
@@ -442,13 +434,6 @@ for tick in range(2000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 120:
-        a0=0.3
-        alpha=1.0
-        gamma=1.0
-        cAA=1.0
-        cAC=1.0
-        cCC=1.0
-        print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
@@ -457,13 +442,6 @@ for tick in range(2000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 130:
-        a0=0.3
-        alpha=1.0
-        gamma=1.0
-        cAA=1.0
-        cAC=1.0
-        cCC=1.0
-        print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
@@ -472,13 +450,6 @@ for tick in range(2000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 140:
-        a0=0.3
-        alpha=1.0
-        gamma=1.0
-        cAA=1.0
-        cAC=1.0
-        cCC=1.0
-        print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
@@ -487,13 +458,6 @@ for tick in range(2000):
         compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick == 150:
-        a0=0.3
-        alpha=1.0
-        gamma=1.0
-        cAA=1.0
-        cAC=1.0
-        cCC=1.0
-        print(f"{a0}, {alpha}, {gamma}, {cAA}, {cAC}, {cCC}")
         new_id = len(nodes)
         nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
@@ -525,6 +489,29 @@ for tick in range(2000):
                 other = neighbors[0]
                 nid_data = nodes.nodes[nid]
                 other_data = nodes.nodes[other]
+                # mutation
+                if tick>300 and other >= 4:
+                    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
+                    old_params = {p: nid_data[p] for p in param_names}
+                    for p in param_names:
+                        nid_data[p] = other_data[p]
+                    keep_param = random.choice(param_names)
+                    nid_data[keep_param] = old_params[keep_param]
+                    keep_param = random.choice(param_names)
+                    nid_data[keep_param] = old_params[keep_param]
+
+                    nid_data['a0'] += random.choice([-0.1, 0.1])
+                    nid_data['a0'] = max(0.4, min(nid_data['a0'], 0.6))
+                    nid_data['alpha'] += random.choice([-0.1, 0.1])
+                    nid_data['alpha'] = max(1.7, min(nid_data['alpha'], 1.8))
+                    nid_data['gamma'] += random.choice([-0.1, 0.1])
+                    nid_data['gamma'] = max(0.9, min(nid_data['gamma'], 1.1))
+                    nid_data['cAA'] += random.choice([-0.1, 0.1])
+                    nid_data['cAA'] = max(7.8, min(nid_data['gamma'], 8.0))
+                    nid_data['cAC'] += random.choice([--0.1, 0.1])
+                    nid_data['cAC'] = max(1.9, min(nid_data['gamma'], 2.1))
+                    nid_data['cCC'] += random.choice([--0.1, 0.1])
+                    nid_data['cCC'] = max(0.9, min(nid_data['gamma'], 1.1))
                 # 1. move to midpoint
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
@@ -543,19 +530,6 @@ for tick in range(2000):
                     if other_nid != nid:
                         nodes.add_edge(nid, other_nid)
                 compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-                # mutation
-                if tick>300 and other_nid >= 4:
-                    param_names = ['a0', 'alpha', 'gamma', 'cAA', 'cAC', 'cCC']
-                    param_names2 = ['alpha', 'gamma', 'cAA', 'cAC', 'cCC']
-                    old_params = {p: nid_data[p] for p in param_names}
-                    for p in param_names2:
-                        nid_data[p] = other_data[p]
-                    keep_param = random.choice(param_names2)
-                    nid_data[keep_param] = old_params[keep_param]
-                    mutate_param = random.choice(param_names2)
-                    nid_data[mutate_param] += random.choice([-0.3, -0.2, -0.1, 0.1, 0.2, 0.3])
-                    for p in param_names2:
-                        nid_data[p] = max(0.5, min(nid_data[p], 8.0))
             elif len(neighbors) > 1:
                 # delete the edge to the neighbor with the highest chip count;
                 # ties broken by shortest distance to nid; parameter dynamics
@@ -660,8 +634,8 @@ for tick in range(2000):
         #nA = np.sum(C == 4)
         #nC = np.sum(C == 5)
         #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
-        if tick%200==0:
-            print(f"- {tick}")
+
+        print("---")
 
         # Print parameters of each inner (non-corner) node each tick
         for nid in sorted(nodes.nodes()):
