@@ -386,8 +386,51 @@ _COL_C = np.array([230, 70, 180], dtype=np.uint8)    # magenta
 _COL_E = np.array([255, 255, 255], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
+# Bresenham line drawing — Numba-JIT'd, alpha-blended into frame buffer, no PIL.
+_LINE_COLOR_R = np.float32(0)
+_LINE_COLOR_G = np.float32(145)
+_LINE_COLOR_B = np.float32(155)
+_LINE_ALPHA = np.float32(136 / 255.0)
+_LINE_W = 4
+_LINE_R = _LINE_W // 2
+_LINE_R2 = _LINE_R * _LINE_R
+
+@njit(fastmath=True)
+def draw_line_njit(img, h, w, y0, x0, y1, x1):
+    """Bresenham with circular brush of radius _LINE_R. Alpha-blended into RGB uint8 img."""
+    dx = abs(x1 - x0)
+    dy = -abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx + dy
+    while True:
+        # brush
+        for by in range(max(0, y0 - _LINE_R), min(h, y0 + _LINE_R + 1)):
+            for bx in range(max(0, x0 - _LINE_R), min(w, x0 + _LINE_R + 1)):
+                if (by - y0) * (by - y0) + (bx - x0) * (bx - x0) <= _LINE_R2:
+                    a = _LINE_ALPHA
+                    inv_a = 1.0 - a
+                    idx = (by * w + bx) * 3
+                    img[idx]     = np.uint8(np.round(img[idx]     * inv_a + _LINE_COLOR_R * a))
+                    img[idx + 1] = np.uint8(np.round(img[idx + 1] * inv_a + _LINE_COLOR_G * a))
+                    img[idx + 2] = np.uint8(np.round(img[idx + 2] * inv_a + _LINE_COLOR_B * a))
+        if x0 == x1 and y0 == y1:
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x0 += sx
+        if e2 <= dx:
+            err += dx
+            y0 += sy
+
+def draw_line(img, y0, x0, y1, x1):
+    """Thin wrapper — flattens frame to uint8 view, calls JIT'd core."""
+    h, w = img.shape[:2]
+    flat = img.reshape(-1)
+    draw_line_njit(flat, h, w, y0, x0, y1, x1)
+
 framecount = 0
-print("time,", "N,", "D,", "A,", "C")
 for tick in range(1000):
 
     promote_queens_njit(C, size)
@@ -502,6 +545,7 @@ for tick in range(1000):
     maxclip = 3 + energy
 
     ND[~((C == 2) | (C == 3))] = 0
+    np.clip(ND, 0, maxclip, out=ND)
 
     tumble_tiles_parallel_njit(ND, size, 64, 0, 0)
 
@@ -514,42 +558,13 @@ for tick in range(1000):
 
 
         frame[:] = _COLORS[C]
-        # ---- overlay parameter-graph edges (PIL) ----
-        # node (x,y) lives in grid coordinates 0..size.
-        # The crop is taken from the top-left of the grid, so node coords are used
-        # directly.  PIL clips lines to the overlay image bounds automatically.
-        try:
-            from PIL import Image, ImageDraw
-            EDGE_COLOR = (0, 145, 155, 136)
-            EDGE_WIDTH = 4
-            overlay = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(overlay)
-            for (u, v) in nodes.edges():
-                xu, yu = int(nodes.nodes[u]['x']), int(nodes.nodes[u]['y'])
-                xv, yv = int(nodes.nodes[v]['x']), int(nodes.nodes[v]['y'])
-                if xu == 0 and yu == 0:
-                    continue
-                if xv == 0 and yv == 0:
-                    continue
-                if xu == size-1 and yu == size-1:
-                    continue
-                if xv == size-1 and yv == size-1:
-                    continue
-                if xu == 0 and yu == size-1:
-                    continue
-                if xv == 0 and yv == size-1:
-                    continue
-                if xu == size-1 and yu == 0:
-                    continue
-                if xv == size-1 and yv == 0:
-                    continue
-                draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
-            img = Image.fromarray(frame).convert('RGBA')
-            img = Image.alpha_composite(img, overlay)
-            tmp = np.array(img.convert('RGB'))
-            frame[:] = tmp
-        except Exception as exc:
-            print(f"[graph-overlay skipped] {exc}")
+        # ---- overlay parameter-graph edges (numpy) ----
+        for (u, v) in nodes.edges():
+            if u < 4 or v < 4:
+                continue
+            draw_line(frame,
+                      int(nodes.nodes[u]['y']), int(nodes.nodes[u]['x']),
+                      int(nodes.nodes[v]['y']), int(nodes.nodes[v]['x']))
 
         # letterbox: write the square crop into the center of the 1920x1080 frame
         out[OFFY:OFFY+size, OFFX:OFFX+size, :] = frame
