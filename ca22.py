@@ -282,7 +282,7 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
 
     # Nearest-neighbour (Voronoi): cKDTree query.
     tree = cKDTree(node_xy)
-    _, best_node = tree.query(np.column_stack([_cell_x, _cell_y]), k=1)
+    _, best_node = tree.query(_coords_array, k=1)
 
     out_a0.ravel()  [:] = node_params[best_node, 0]
     out_alpha.ravel()[:] = node_params[best_node, 1]
@@ -305,7 +305,7 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 896
+size = 832
 
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
@@ -323,6 +323,8 @@ cCC_grid = np.zeros((size, size), dtype='float64')
 # Depends only on `size`, which is constant, so built once.
 _cell_x = np.tile(np.arange(size, dtype='float64'), size)
 _cell_y = np.repeat(np.arange(size, dtype='float64'), size)
+# Precomputed coordinate array for cKDTree query — built once.
+_coords_array = np.column_stack([_cell_x, _cell_y])
 
 # 1 queen
 # 2 N
@@ -342,8 +344,10 @@ for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)])
 
 # Initial conditions
 C = C+3
-C[1:3, 1:-1] = 4
-C[1:-1, 1:3] = 4
+C[63:66, 1:-1] = 4
+C[60:62, 1:-1] = 5
+C[1:-1, 63:66] = 4
+C[1:-1, 60:62] = 5
 C[-3:-1, 1:-1] = 4
 C[1:-1, -3:-1] = 4
 
@@ -431,7 +435,7 @@ def draw_line(img, y0, x0, y1, x1):
     draw_line_njit(flat, h, w, y0, x0, y1, x1)
 
 framecount = 0
-for tick in range(1000):
+for tick in range(2000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
