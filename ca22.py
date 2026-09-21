@@ -24,21 +24,6 @@ def chip_borrowing_move(nodes, nid):
     for nb in nodes.neighbors(nid):
         nodes.nodes[nb]['chips'] -= 1
 
-size = 1024
-
-VIDEO_W, VIDEO_H = 1920, 1080
-VIDEO_FPS = 60
-
-video_out_path = "new_video.mp4"
-writer = imageio.get_writer(
-    video_out_path,
-    fps=VIDEO_FPS,
-    codec="libx264",
-    quality=None,
-    pixelformat="yuv420p",
-    macro_block_size=None,
-)
-
 @njit
 def tumble_njit(spile):
     for i in range(99999):
@@ -317,11 +302,20 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
+VIDEO_W, VIDEO_H = 1920, 1080
+VIDEO_FPS = 60
 
-VIEW_SIZE = 1024
-size = 1024
+video_out_path = "new_video.mp4"
+writer = imageio.get_writer(
+    video_out_path,
+    fps=VIDEO_FPS,
+    codec="libx264",
+    quality=None,
+    pixelformat="yuv420p",
+    macro_block_size=None,
+)
 
-VIEW_ORIGIN = 0
+size = 896
 
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
@@ -404,7 +398,7 @@ _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.ui
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+for tick in range(1000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -440,12 +434,13 @@ for tick in range(2000):
     # position is too close to any other node, kick away from the nearest
     # one (and reconnect to all).
     if tick >= 160 and tick % 5 == 0:
+        moved = False
         for nid in list(nodes.nodes()):
-            moved = False
             if nid < 4:
                 continue
             neighbors = list(nodes.neighbors(nid))
             if len(neighbors) == 1:
+                moved = True
                 other = neighbors[0]
                 nid_data = nodes.nodes[nid]
                 other_data = nodes.nodes[other]
@@ -489,7 +484,6 @@ for tick in range(2000):
                 for other_nid in nodes.nodes():
                     if other_nid != nid:
                         nodes.add_edge(nid, other_nid)
-                compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
             elif len(neighbors) > 1:
                 # delete the edge to the neighbor with the highest chip count;
                 # ties broken by shortest distance to nid; parameter dynamics
@@ -501,6 +495,8 @@ for tick in range(2000):
                     return (nodes.nodes[n]['chips'], -(dx*dx + dy*dy))
                 victim = max(neighbors, key=edge_key)
                 nodes.remove_edge(nid, victim)
+        if moved:
+            compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     if tick >= 200 and tick % 4 == 0:
         for nid in range(4):
@@ -575,7 +571,7 @@ for tick in range(2000):
         #nC = np.sum(C == 5)
         #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
 
-        #print("---")
+        print(tick)
 
         ## Print parameters of each inner (non-corner) node each tick
         #for nid in sorted(nodes.nodes()):
