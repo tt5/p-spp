@@ -511,7 +511,7 @@ for tick in range(1000):
 
     maxclip = 3 + energy
 
-    ND = np.clip(ND - ((C != 2) & (C != 3)) * maxclip, 0, maxclip)
+    ND[~((C == 2) | (C == 3))] = 0
 
     tumble_tiles_parallel_njit(ND, size, 64, 0, 0)
 
@@ -522,9 +522,8 @@ for tick in range(1000):
         # Crop the grid to a 1024x1024 square and letterbox it into the frame,
         # centered with black padding.
 
-        out[:] = 0
-        frame[:] = _COLORS[C]
 
+        frame[:] = _COLORS[C]
         # ---- overlay parameter-graph edges (PIL) ----
         # node (x,y) lives in grid coordinates 0..size.
         # The crop is taken from the top-left of the grid, so node coords are used
