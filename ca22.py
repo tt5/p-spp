@@ -274,17 +274,7 @@ def birthND_njit(C, ND, size):
                 C[y,x] = 2
 
 
-def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
-    """Compute per-cell (a0, alpha, gamma, cAA, cAC, cCC) by IDW (p=2) over the
-    k nearest nodes, writing results into the six pre-allocated (size, size) arrays.
-
-    Distances are built one node at a time (no (N_cells, N_nodes, 2) broadcast).
-    For k = 1 this is a nearest-neighbour (Voronoi) assignment; for k >= 2 the same
-    inverse-square weighting as before is applied.
-
-    nodes: networkx graph where each node carries x, y, a0, alpha, gamma, cAA, cAC, cCC.
-    out_*: float64 arrays of shape (size, size), reused across calls.
-    """
+def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
     if len(nodes) == 0:
         out_a0.fill(0); out_alpha.fill(0); out_gamma.fill(0)
         out_cAA.fill(0); out_cAC.fill(0); out_cCC.fill(0)
@@ -305,47 +295,27 @@ def compute_param_grids(nodes, size, k, out_a0, out_alpha, out_gamma, out_cAA, o
         node_params[i, 5] = nd['cCC']
 
     N_cells = size * size
-    knn = min(k, N_nodes)
+    knn = min(1, N_nodes)
     nx = node_xy[:, 0]   # (N_nodes,) — node x positions
     ny = node_xy[:, 1]   # (N_nodes,) — node y positions
 
-    if knn == 1:
-        # Nearest-neighbour (Voronoi): one pass per node, keep best distance + owner.
-        best_dist = np.full(N_cells, np.inf, dtype='float64')
-        best_node = np.full(N_cells, -1, dtype=np.int64)
-        for j in range(N_nodes):
-            dx = _cell_x - nx[j]
-            dy = _cell_y - ny[j]
-            d = np.sqrt(dx * dx + dy * dy)
-            mask = d < best_dist
-            best_dist[mask] = d[mask]
-            best_node[mask] = j
-        out_a0.ravel()  [:] = node_params[best_node, 0]
-        out_alpha.ravel()[:] = node_params[best_node, 1]
-        out_gamma.ravel()[:] = node_params[best_node, 2]
-        out_cAA.ravel()  [:] = node_params[best_node, 3]
-        out_cAC.ravel()  [:] = node_params[best_node, 4]
-        out_cCC.ravel()  [:] = node_params[best_node, 5]
-        return
-
-    # k >= 2: column-wise distance build, then argpartition + IDW (same weighting).
-    dists = np.empty((N_cells, N_nodes), dtype='float64')
+    # Nearest-neighbour (Voronoi): one pass per node, keep best distance + owner.
+    best_dist = np.full(N_cells, np.inf, dtype='float64')
+    best_node = np.full(N_cells, -1, dtype=np.int64)
     for j in range(N_nodes):
         dx = _cell_x - nx[j]
         dy = _cell_y - ny[j]
-        dists[:, j] = np.sqrt(dx * dx + dy * dy)
-    knn_idx = np.argpartition(dists, knn, axis=1)[:, :knn]
-    k_dists = np.take_along_axis(dists, knn_idx, axis=1)
-    eps = 1e-9
-    w = 1.0 / (k_dists * k_dists + eps)
-    w = w / w.sum(axis=1, keepdims=True)
-    avg_params = (node_params[knn_idx] * w[..., None]).sum(axis=1)
-    out_a0[:]  = avg_params[:, 0].reshape(size, size)
-    out_alpha[:] = avg_params[:, 1].reshape(size, size)
-    out_gamma[:] = avg_params[:, 2].reshape(size, size)
-    out_cAA[:]   = avg_params[:, 3].reshape(size, size)
-    out_cAC[:]   = avg_params[:, 4].reshape(size, size)
-    out_cCC[:]   = avg_params[:, 5].reshape(size, size)
+        d = np.sqrt(dx * dx + dy * dy)
+        mask = d < best_dist
+        best_dist[mask] = d[mask]
+        best_node[mask] = j
+    out_a0.ravel()  [:] = node_params[best_node, 0]
+    out_alpha.ravel()[:] = node_params[best_node, 1]
+    out_gamma.ravel()[:] = node_params[best_node, 2]
+    out_cAA.ravel()  [:] = node_params[best_node, 3]
+    out_cAC.ravel()  [:] = node_params[best_node, 4]
+    out_cCC.ravel()  [:] = node_params[best_node, 5]
+    return
 
 
 VIEW_SIZE = 1024
@@ -393,10 +363,8 @@ C[1:-1, 1:3] = 4
 C[-3:-1, 1:-1] = 4
 C[1:-1, -3:-1] = 4
 
-k_nearest = 1
-
 # Compute per-cell parameter grids from current node positions
-compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
+compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
 a0 = 0.5
 alpha = 1.8
@@ -413,6 +381,26 @@ INJECTION_SCHEDULE = {
     140: (size//2,     size//6),
     150: (3*size//4,   size//6),
 }
+
+# Video layout — constant across all frames.
+OFFY = (VIDEO_H - size) // 2
+OFFX = (VIDEO_W - size) // 2
+
+# Pre-allocated render buffers (reused every frame). uint8 matches what
+# imageio / PIL expect, avoids int64 traffic and per-frame astype.
+out   = np.zeros((VIDEO_H, VIDEO_W, 3), dtype=np.uint8)
+frame = np.zeros((size, size, 3), dtype=np.uint8)
+
+# species palette — built once; indexed by cell type.
+#   0 empty -> white, 1 queen -> gold, 2 N -> black,
+#   3 D -> blue, 4 A -> orange, 5 C -> magenta
+_COL_Q = np.array([255, 224, 110], dtype=np.uint8)   # gold
+_COL_D = np.array([80, 210, 255], dtype=np.uint8)
+_COL_N = np.array([0, 0, 0], dtype=np.uint8)
+_COL_A = np.array([195, 140, 60], dtype=np.uint8)    # orange
+_COL_C = np.array([230, 70, 180], dtype=np.uint8)    # magenta
+_COL_E = np.array([255, 255, 255], dtype=np.uint8)
+_COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
@@ -434,7 +422,7 @@ for tick in range(2000):
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid,
+        compute_param_grids(nodes, size, a0_grid, alpha_grid,
                             gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     # ---- chip-firing dynamics on the parameter graph ----
@@ -473,17 +461,17 @@ for tick in range(2000):
                     nid_data[keep_param] = old_params[keep_param]
 
                     nid_data['a0'] += random.choice([-0.1, 0.1])
-                    nid_data['a0'] = max(0.4, min(nid_data['a0'], 0.6))
+                    nid_data['a0'] = max(a0-0.1, min(nid_data['a0'], a0+0.1))
                     nid_data['alpha'] += random.choice([-0.1, 0.1])
-                    nid_data['alpha'] = max(1.7, min(nid_data['alpha'], 1.8))
+                    nid_data['alpha'] = max(alpha-0.1 , min(nid_data['alpha'], alpha+0.1))
                     nid_data['gamma'] += random.choice([-0.1, 0.1])
-                    nid_data['gamma'] = max(0.9, min(nid_data['gamma'], 1.1))
+                    nid_data['gamma'] = max(gamma-0.1, min(nid_data['gamma'], gamma+0.1))
                     nid_data['cAA'] += random.choice([-0.1, 0.1])
-                    nid_data['cAA'] = max(7.8, min(nid_data['gamma'], 8.0))
-                    nid_data['cAC'] += random.choice([--0.1, 0.1])
-                    nid_data['cAC'] = max(1.9, min(nid_data['gamma'], 2.1))
-                    nid_data['cCC'] += random.choice([--0.1, 0.1])
-                    nid_data['cCC'] = max(0.9, min(nid_data['gamma'], 1.1))
+                    nid_data['cAA'] = max(cAA-0.1, min(nid_data['cAA'], cAA+0.1))
+                    nid_data['cAC'] += random.choice([-0.1, 0.1])
+                    nid_data['cAC'] = max(cAC-0.1, min(nid_data['cAC'], cAC+0.1))
+                    nid_data['cCC'] += random.choice([-0.1, 0.1])
+                    nid_data['cCC'] = max(cCC-0.1, min(nid_data['cCC'], cCC+0.1))
                 # 1. move to midpoint
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
@@ -501,7 +489,7 @@ for tick in range(2000):
                 for other_nid in nodes.nodes():
                     if other_nid != nid:
                         nodes.add_edge(nid, other_nid)
-                compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
+                compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
             elif len(neighbors) > 1:
                 # delete the edge to the neighbor with the highest chip count;
                 # ties broken by shortest distance to nid; parameter dynamics
@@ -538,27 +526,8 @@ for tick in range(2000):
         # Crop the grid to a 1024x1024 square and letterbox it into the frame,
         # centered with black padding.
 
-        OFFY = (VIDEO_H - size) // 2
-        OFFX = (VIDEO_W - size) // 2
-
-        out = np.zeros((VIDEO_H, VIDEO_W, 3), dtype='int')
-
-        frame = np.zeros((size, size, 3), dtype='int')
-
-        # species palette (R, G, B)
-        COL_Q = np.array([255, 224, 110], dtype='int')   # gold
-        COL_D = np.array([80, 210, 255], dtype='int')
-        COL_N = np.array([0, 0, 0], dtype='int')
-        COL_A = np.array([195, 140, 60], dtype='int')    # orange
-        COL_C = np.array([230, 70, 180], dtype='int')    # magenta
-        COL_E = np.array([255, 255, 255], dtype='int')
-
-        for mask, col in [(C == 1, COL_Q), (C == 2, COL_N),
-                          (C == 3, COL_D), (C == 4, COL_A),
-                          (C == 5, COL_C), (C == 0, COL_E)]:
-            frame[mask] = col
-
-        frame = np.clip(frame, 0, 255)
+        out[:] = 0
+        frame[:] = _COLORS[C]
 
         # ---- overlay parameter-graph edges (PIL) ----
         # node (x,y) lives in grid coordinates 0..size.
@@ -590,16 +559,15 @@ for tick in range(2000):
                 if xv == size-1 and yv == 0:
                     continue
                 draw.line([(xu, yu), (xv, yv)], fill=EDGE_COLOR, width=EDGE_WIDTH)
-            img = Image.fromarray(frame.astype(np.uint8)).convert('RGBA')
+            img = Image.fromarray(frame).convert('RGBA')
             img = Image.alpha_composite(img, overlay)
-            frame = np.array(img.convert('RGB'))
+            tmp = np.array(img.convert('RGB'))
+            frame[:] = tmp
         except Exception as exc:
             print(f"[graph-overlay skipped] {exc}")
 
         # letterbox: write the square crop into the center of the 1920x1080 frame
         out[OFFY:OFFY+size, OFFX:OFFX+size, :] = frame
-        
-        frame = out
 
         #nN = np.sum(C == 2)
         #nD = np.sum(C == 3)
@@ -607,19 +575,19 @@ for tick in range(2000):
         #nC = np.sum(C == 5)
         #print(f"{framecount}, {nN}, {nD}, {nA}, {nC}")
 
-        print("---")
+        #print("---")
 
-        # Print parameters of each inner (non-corner) node each tick
-        for nid in sorted(nodes.nodes()):
-            if nid < 4:
-                continue
-            nd = nodes.nodes[nid]
-            print(f"node {nid} tick {tick} x={nd['x']:.2f} y={nd['y']:.2f} "
-                  f"a0={nd['a0']:.3f} alpha={nd['alpha']:.3f} gamma={nd['gamma']:.3f} "
-                  f"cAA={nd['cAA']:.3f} cAC={nd['cAC']:.3f} cCC={nd['cCC']:.3f} "
-                  f"chips={nd['chips']} degree={nodes.degree(nid)}")
+        ## Print parameters of each inner (non-corner) node each tick
+        #for nid in sorted(nodes.nodes()):
+        #    if nid < 4:
+        #        continue
+        #    nd = nodes.nodes[nid]
+        #    print(f"node {nid} tick {tick} x={nd['x']:.2f} y={nd['y']:.2f} "
+        #          f"a0={nd['a0']:.3f} alpha={nd['alpha']:.3f} gamma={nd['gamma']:.3f} "
+        #          f"cAA={nd['cAA']:.3f} cAC={nd['cAC']:.3f} cCC={nd['cCC']:.3f} "
+        #          f"chips={nd['chips']} degree={nodes.degree(nid)}")
 
                 
-        writer.append_data(frame.astype(np.uint8))
+        writer.append_data(out)
 
 writer.close()
