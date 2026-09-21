@@ -407,7 +407,7 @@ cCC = 1.0
 
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
-for tick in range(5000):
+for tick in range(2000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -427,7 +427,7 @@ for tick in range(5000):
 
     if tick == 110:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
+        nodes.add_node(new_id, x=3*size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
@@ -435,7 +435,7 @@ for tick in range(5000):
 
     if tick == 120:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
+        nodes.add_node(new_id, x=size//2, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
@@ -443,7 +443,7 @@ for tick in range(5000):
 
     if tick == 130:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
+        nodes.add_node(new_id, x=size//4, y=size//6, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
@@ -451,7 +451,7 @@ for tick in range(5000):
 
     if tick == 140:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
+        nodes.add_node(new_id, x=size//2, y=size//6, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
@@ -459,7 +459,7 @@ for tick in range(5000):
 
     if tick == 150:
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
+        nodes.add_node(new_id, x=3*size//4, y=size//6, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
