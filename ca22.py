@@ -557,7 +557,7 @@ for tick in range(1000):
         # centered with black padding.
 
 
-        frame[:] = _COLORS[C]
+        np.take(_COLORS, C, axis=0, out=frame)
         # ---- overlay parameter-graph edges (numpy) ----
         for (u, v) in nodes.edges():
             if u < 4 or v < 4:
