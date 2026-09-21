@@ -5,6 +5,7 @@ from numba import njit, prange
 import networkx as nx
 import imageio
 import numpy as np
+from scipy.spatial import cKDTree
 
 np.set_printoptions(threshold=sys.maxsize)
 np.set_printoptions(linewidth=np.inf)
@@ -279,21 +280,10 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
         node_params[i, 4] = nd['cAC']
         node_params[i, 5] = nd['cCC']
 
-    N_cells = size * size
-    knn = min(1, N_nodes)
-    nx = node_xy[:, 0]   # (N_nodes,) — node x positions
-    ny = node_xy[:, 1]   # (N_nodes,) — node y positions
+    # Nearest-neighbour (Voronoi): cKDTree query.
+    tree = cKDTree(node_xy)
+    _, best_node = tree.query(np.column_stack([_cell_x, _cell_y]), k=1)
 
-    # Nearest-neighbour (Voronoi): one pass per node, keep best distance + owner.
-    best_dist = np.full(N_cells, np.inf, dtype='float64')
-    best_node = np.full(N_cells, -1, dtype=np.int64)
-    for j in range(N_nodes):
-        dx = _cell_x - nx[j]
-        dy = _cell_y - ny[j]
-        d = np.sqrt(dx * dx + dy * dy)
-        mask = d < best_dist
-        best_dist[mask] = d[mask]
-        best_node[mask] = j
     out_a0.ravel()  [:] = node_params[best_node, 0]
     out_alpha.ravel()[:] = node_params[best_node, 1]
     out_gamma.ravel()[:] = node_params[best_node, 2]
