@@ -405,6 +405,15 @@ cAA = 8.0
 cAC = 2.0
 cCC = 1.0
 
+INJECTION_SCHEDULE = {
+    100: (size//4,     size//3),
+    110: (3*size//4,   size//3),
+    120: (size//2,     size//3),
+    130: (size//4,     size//6),
+    140: (size//2,     size//6),
+    150: (3*size//4,   size//6),
+}
+
 framecount = 0
 print("time,", "N,", "D,", "A,", "C")
 for tick in range(2000):
@@ -416,54 +425,17 @@ for tick in range(2000):
     eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
     eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
-    if tick == 100:
+    inject = INJECTION_SCHEDULE.get(tick)
+    if inject is not None:
+        x, y = inject
         new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
+        nodes.add_node(new_id, x=x, y=y, a0=a0, alpha=alpha, gamma=gamma,
+                       cAA=cAA, cAC=cAC, cCC=cCC)
         for existing in range(new_id):
             nodes.add_edge(new_id, existing)
         nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-
-
-    if tick == 110:
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=3*size//4, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-
-    if tick == 120:
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=size//2, y=size//3, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-
-    if tick == 130:
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=size//4, y=size//6, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-
-    if tick == 140:
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=size//2, y=size//6, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-
-    if tick == 150:
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=3*size//4, y=size//6, a0=a0, alpha=alpha, gamma=gamma, cAA=cAA, cAC=cAC, cCC=cCC)
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
+        compute_param_grids(nodes, size, k_nearest, a0_grid, alpha_grid,
+                            gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     # ---- chip-firing dynamics on the parameter graph ----
     if tick%3 == 0:
