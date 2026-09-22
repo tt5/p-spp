@@ -1,4 +1,5 @@
 import sys
+import os
 import random
 import math
 from numba import njit, prange
@@ -276,22 +277,22 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
-VIDEO_W, VIDEO_H = 1920, 1080
-VIDEO_FPS = 60
+VIDEO_W, VIDEO_H = 150, 150
+VIDEO_FPS = 30
 
 video_out_path = "new_video.mp4"
 writer = imageio.get_writer(
     video_out_path,
     fps=VIDEO_FPS,
     codec="libx264",
-    quality=None,
+    quality=10,
     pixelformat="yuv420p",
     macro_block_size=None,
 )
 
 size = 150
 
-C = np.zeros((size,size), dtype='int')
+C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
 
 # Pre-allocated parameter grids — reused across every compute_param_grids call.
@@ -355,16 +356,16 @@ OFFX = (VIDEO_W - size) // 2
 out   = np.zeros((VIDEO_H, VIDEO_W, 3), dtype=np.uint8)
 frame = np.zeros((size, size, 3), dtype=np.uint8)
 
-_COL_Q = np.array([255, 225, 255], dtype=np.uint8)
-_COL_D = np.array([0, 0, 0], dtype=np.uint8)
-_COL_N = np.array([0, 0, 0], dtype=np.uint8)
+_COL_Q = np.array([0, 255, 0], dtype=np.uint8)
+_COL_D = np.array([255, 255, 255], dtype=np.uint8)
+_COL_N = np.array([255, 0, 0], dtype=np.uint8)
 _COL_A = np.array([0, 0, 0], dtype=np.uint8)
-_COL_C = np.array([0, 0, 0], dtype=np.uint8)
+_COL_C = np.array([0, 0, 255], dtype=np.uint8)
 _COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
-for tick in range(300):
+for tick in range(250):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -399,5 +400,10 @@ for tick in range(300):
         print(tick)
 
         writer.append_data(out)
+
+        imageio.imwrite(
+    os.path.join("data", f'frame_{tick:04d}.png'),
+    ((C.astype(np.float64)-1) * (255.0 / 4.0)).round().astype(np.uint8),
+)
 
 writer.close()
