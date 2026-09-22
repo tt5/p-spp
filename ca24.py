@@ -163,33 +163,24 @@ def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
         if y<size-1 and x<size-1: southeast = C[y+1,x+1]
         if y<size-1 and x>0: southwest = C[y+1,x-1]
         nN, nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
+        nb = (north, south, east, west, northeast, northwest, southeast, southwest)
         if nN > 0:
             denomA = 1 + cAA_grid[y,x]*nA + cAC_grid[y,x]*nC
             pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
             if pkill >= 0.5:
                 for i in range(8):
-                    j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-                    if j == 2:
+                    if nb[i] == 2:
                         dy, dx = deltas[i]
-                        ny = y + dy
-                        nx = x + dx
-                        C[ny, nx] = 4
-        if nN == 0:
+                        C[y + dy, x + dx] = 4
+        else:
             for i in range(8):
-                j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
+                j = nb[i]
                 if j == 3:
                     dy, dx = deltas[i]
-                    ny = y + dy
-                    nx = x + dx
-                    C[ny, nx] = 4
-        if nN == 0 and nD ==0:
-            for i in range(8):
-                j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-                if j == 5:
+                    C[y + dy, x + dx] = 4
+                elif j == 5 and nD == 0:
                     dy, dx = deltas[i]
-                    ny = y + dy
-                    nx = x + dx
-                    C[ny, nx] = 4
+                    C[y + dy, x + dx] = 4
 
 @njit
 def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
