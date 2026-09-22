@@ -110,32 +110,40 @@ def add_energy_njit(C, ND, size, energy):
 
 @njit
 def _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest):
-    nD = nA = nC = 0
-    if north == 3: nD += 1
+    nN = nD = nA = nC = 0
+    if north == 2: nN += 1
+    elif north == 3: nD += 1
     elif north == 4: nA += 1
     elif north == 5: nC += 1
-    if south == 3: nD += 1
+    if south == 2: nN += 1
+    elif south == 3: nD += 1
     elif south == 4: nA += 1
     elif south == 5: nC += 1
-    if east == 3: nD += 1
+    if east == 2: nN += 1
+    elif east == 3: nD += 1
     elif east == 4: nA += 1
     elif east == 5: nC += 1
-    if west == 3: nD += 1
+    if west == 2: nN += 1
+    elif west == 3: nD += 1
     elif west == 4: nA += 1
     elif west == 5: nC += 1
-    if northeast == 3: nD += 1
+    if northeast == 2: nN += 1
+    elif northeast == 3: nD += 1
     elif northeast == 4: nA += 1
     elif northeast == 5: nC += 1
-    if northwest == 3: nD += 1
+    if northwest == 2: nN += 1
+    elif northwest == 3: nD += 1
     elif northwest == 4: nA += 1
     elif northwest == 5: nC += 1
-    if southeast == 3: nD += 1
+    if southeast == 2: nN += 1
+    elif southeast == 3: nD += 1
     elif southeast == 4: nA += 1
     elif southeast == 5: nC += 1
-    if southwest == 3: nD += 1
+    if southwest == 2: nN += 1
+    elif southwest == 3: nD += 1
     elif southwest == 4: nA += 1
     elif southwest == 5: nC += 1
-    return nD, nA, nC
+    return nN, nD, nA, nC
 
 @njit
 def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
@@ -154,41 +162,34 @@ def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
         if y>0 and x>0: northwest = C[y-1,x-1]
         if y<size-1 and x<size-1: southeast = C[y+1,x+1]
         if y<size-1 and x>0: southwest = C[y+1,x-1]
-        nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
-        denomA = 1 + cAA_grid[y,x]*nA + cAC_grid[y,x]*nC
-        pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
-        killed = False
-        isPkill = True
-        for i in range(8):
-            j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-            if j == 2:
-                if pkill < 0.5:
-                    isPkill = False
-                    break
-                dy, dx = deltas[i]
-                ny = y + dy
-                nx = x + dx
-                C[ny, nx] = 4
-                killed = True
-        if isPkill == False or killed == True:
-            continue
-        for i in range(8):
-            j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-            if j == 3:
-                dy, dx = deltas[i]
-                ny = y + dy
-                nx = x + dx
-                C[ny, nx] = 4
-                killed = True
-        if killed == True:
-            continue
-        for i in range(8):
-            j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-            if j == 5:
-                dy, dx = deltas[i]
-                ny = y + dy
-                nx = x + dx
-                C[ny, nx] = 4
+        nN, nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
+        if nN > 0:
+            denomA = 1 + cAA_grid[y,x]*nA + cAC_grid[y,x]*nC
+            pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
+            if pkill >= 0.5:
+                for i in range(8):
+                    j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
+                    if j == 2:
+                        dy, dx = deltas[i]
+                        ny = y + dy
+                        nx = x + dx
+                        C[ny, nx] = 4
+        if nN == 0:
+            for i in range(8):
+                j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
+                if j == 3:
+                    dy, dx = deltas[i]
+                    ny = y + dy
+                    nx = x + dx
+                    C[ny, nx] = 4
+        if nN == 0 and nD ==0:
+            for i in range(8):
+                j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
+                if j == 5:
+                    dy, dx = deltas[i]
+                    ny = y + dy
+                    nx = x + dx
+                    C[ny, nx] = 4
 
 @njit
 def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
@@ -207,7 +208,7 @@ def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
         if y>0 and x>0: northwest = C[y-1,x-1]
         if y<size-1 and x<size-1: southeast = C[y+1,x+1]
         if y<size-1 and x>0: southwest = C[y+1,x-1]
-        nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
+        nN, nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
             if j == 2:
