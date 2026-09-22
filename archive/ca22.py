@@ -35,6 +35,8 @@ def tumble_njit(spile):
             spile[:, :-1] += tumbled[:, 1:]
             spile[:, 1:] += tumbled[:, :-1]
         else:
+            if i == 0:
+                spile[:] = 2
             break
     return spile
 
@@ -305,7 +307,7 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 832
+size = 1050
 
 C = np.zeros((size,size), dtype='int')
 ND = np.zeros((size,size), dtype='int')
@@ -354,10 +356,11 @@ C[1:-1, -3:-1] = 4
 # Compute per-cell parameter grids from current node positions
 compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
+mrange = 0.2
 a0 = 0.5
 alpha = 1.8
 gamma = 1.0
-cAA = 8.0
+cAA = 8.0 - mrange
 cAC = 2.0
 cCC = 1.0
 
@@ -382,12 +385,18 @@ frame = np.zeros((size, size, 3), dtype=np.uint8)
 # species palette — built once; indexed by cell type.
 #   0 empty -> white, 1 queen -> gold, 2 N -> black,
 #   3 D -> blue, 4 A -> orange, 5 C -> magenta
-_COL_Q = np.array([255, 224, 110], dtype=np.uint8)   # gold
-_COL_D = np.array([80, 210, 255], dtype=np.uint8)
+#_COL_Q = np.array([255, 224, 110], dtype=np.uint8)   # gold
+#_COL_D = np.array([80, 210, 255], dtype=np.uint8)
+#_COL_N = np.array([0, 0, 0], dtype=np.uint8)
+#_COL_A = np.array([195, 140, 60], dtype=np.uint8)    # orange
+#_COL_C = np.array([230, 70, 180], dtype=np.uint8)    # magenta
+#_COL_E = np.array([255, 255, 255], dtype=np.uint8)
+_COL_Q = np.array([255, 225, 255], dtype=np.uint8)   # gold
+_COL_D = np.array([0, 0, 0], dtype=np.uint8)
 _COL_N = np.array([0, 0, 0], dtype=np.uint8)
-_COL_A = np.array([195, 140, 60], dtype=np.uint8)    # orange
-_COL_C = np.array([230, 70, 180], dtype=np.uint8)    # magenta
-_COL_E = np.array([255, 255, 255], dtype=np.uint8)
+_COL_A = np.array([0, 0, 0], dtype=np.uint8)    # orange
+_COL_C = np.array([0, 0, 0], dtype=np.uint8)    # magenta
+_COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 # Bresenham line drawing — Numba-JIT'd, alpha-blended into frame buffer, no PIL.
@@ -435,7 +444,7 @@ def draw_line(img, y0, x0, y1, x1):
     draw_line_njit(flat, h, w, y0, x0, y1, x1)
 
 framecount = 0
-for tick in range(2000):
+for tick in range(4000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -493,22 +502,22 @@ for tick in range(2000):
                     nid_data[keep_param] = old_params[keep_param]
 
                     nid_data['a0'] += random.choice([-0.1, 0.1])
-                    nid_data['a0'] = max(a0-0.1, min(nid_data['a0'], a0+0.1))
+                    nid_data['a0'] = max(a0-mrange, min(nid_data['a0'], a0+mrange))
                     nid_data['alpha'] += random.choice([-0.1, 0.1])
-                    nid_data['alpha'] = max(alpha-0.1 , min(nid_data['alpha'], alpha+0.1))
+                    nid_data['alpha'] = max(alpha-mrange , min(nid_data['alpha'], alpha+mrange))
                     nid_data['gamma'] += random.choice([-0.1, 0.1])
-                    nid_data['gamma'] = max(gamma-0.1, min(nid_data['gamma'], gamma+0.1))
+                    nid_data['gamma'] = max(gamma-mrange, min(nid_data['gamma'], gamma+mrange))
                     nid_data['cAA'] += random.choice([-0.1, 0.1])
-                    nid_data['cAA'] = max(cAA-0.1, min(nid_data['cAA'], cAA+0.1))
+                    nid_data['cAA'] = max(cAA-mrange, min(nid_data['cAA'], cAA+mrange))
                     nid_data['cAC'] += random.choice([-0.1, 0.1])
-                    nid_data['cAC'] = max(cAC-0.1, min(nid_data['cAC'], cAC+0.1))
+                    nid_data['cAC'] = max(cAC-mrange, min(nid_data['cAC'], cAC+mrange))
                     nid_data['cCC'] += random.choice([-0.1, 0.1])
-                    nid_data['cCC'] = max(cCC-0.1, min(nid_data['cCC'], cCC+0.1))
+                    nid_data['cCC'] = max(cCC-mrange, min(nid_data['cCC'], cCC+mrange))
                 # 1. move to midpoint
                 nid_data['x'] = (nid_data['x'] + other_data['x']) / 2
                 nid_data['y'] = (nid_data['y'] + other_data['y']) / 2
                 # 2. if too close to the collapse target, kick away from it
-                min_dist = 256.0
+                min_dist = size//4
                 kx = nid_data['x'] - other_data['x']
                 ky = nid_data['y'] - other_data['y']
                 d = math.sqrt(kx * kx + ky * ky) + 1e-6
@@ -551,7 +560,7 @@ for tick in range(2000):
     ND[~((C == 2) | (C == 3))] = 0
     np.clip(ND, 0, maxclip, out=ND)
 
-    tumble_tiles_parallel_njit(ND, size, 64, 0, 0)
+    tumble_tiles_parallel_njit(ND, size, 50, 0, 0)
 
     if tick%1==0 and tick>0:
         framecount += 1

@@ -5,3 +5,35 @@ ffmpeg -i new_video.mp4 -vf "crop=1920:1080:0:0" -c:v libx264 -pix_fmt yuv420p -
 2000
 6m0.769s
 4m22.085s
+
+---
+
+promote all D that are surrounded by 4 normal prey Von-Neumann neighbors to queens
+
+delete queens in predator territory
+
+add D and N everywhere where energy is except if there is a queen
+
+C eats N
+
+A eats N or if there are no N it eats D and if there are no N or D it eats C
+
+add energy to D, remove energy outside prey territory, spread energy
+
+---
+
+a D cell can die:
+
+- 4 N neighbor (promoted to queen)
+- eaten by A (if A has no N neighbours) (unlikely)
+- less than 3 N neigbors (converted to N instead of D)
+
+energy is only added to the system through D cells
+
+Q (queen) depends on D, D depends on N, N depend on energy, new energy depends on D.
+
+Q reduces D birth and does not count as prey territory (energy is set to zero).
+
+C depeds on N. C eats N before C is attacked by A.
+
+Energy can destroy predators.
