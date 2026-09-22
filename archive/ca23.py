@@ -277,8 +277,8 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
-VIDEO_W, VIDEO_H = 150, 150
-VIDEO_FPS = 30
+VIDEO_W, VIDEO_H = 288, 162
+VIDEO_FPS = 10
 
 video_out_path = "new_video.mp4"
 writer = imageio.get_writer(
@@ -286,7 +286,7 @@ writer = imageio.get_writer(
     fps=VIDEO_FPS,
     codec="libx264",
     quality=10,
-    pixelformat="yuv420p",
+    pixelformat="yuv444p",
     macro_block_size=None,
 )
 
@@ -365,6 +365,7 @@ _COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
+print("time,", "N,", "D,", "A,", "C")
 for tick in range(250):
 
     promote_queens_njit(C, size)
@@ -400,10 +401,5 @@ for tick in range(250):
         print(tick)
 
         writer.append_data(out)
-
-        imageio.imwrite(
-    os.path.join("data", f'frame_{tick:04d}.png'),
-    ((C.astype(np.float64)-1) * (255.0 / 4.0)).round().astype(np.uint8),
-)
 
 writer.close()
