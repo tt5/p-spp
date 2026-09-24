@@ -282,8 +282,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 180
-ss = 6
+size = 150
+ss = 5
 
 C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
