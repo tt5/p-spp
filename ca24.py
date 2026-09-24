@@ -10,17 +10,16 @@ from scipy.spatial import cKDTree
 
 @njit
 def tumble_njit(spile):
-    for i in range(1):
-        if (spile > 3).any():
-            tumbled, spile = np.divmod(spile, 4)
-            spile[:-1, :] += tumbled[1:, :]
-            spile[1:, :] += tumbled[:-1, :]
-            spile[:, :-1] += tumbled[:, 1:]
-            spile[:, 1:] += tumbled[:, :-1]
-        else:
-            if i == 0:
-                spile[:] = 1
-            break
+    if (spile > 3).any():
+        tumbled, spile = np.divmod(spile, 4)
+        spile[:-1, :] += tumbled[1:, :]
+        spile[1:, :] += tumbled[:-1, :]
+        spile[:, :-1] += tumbled[:, 1:]
+        spile[:, 1:] += tumbled[:, :-1]
+    else:
+        lut = np.array([3, 2, 1, 0])   # 0→3, 1→2, 2→1, 3→0
+        result = np.matrix(lut[spile.A]) + 1
+        spile[:] = result
     return spile
 
 @njit(parallel=True)
@@ -159,8 +158,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 105
-ss = 5
+size = 100
+ss = 4
 
 C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
@@ -203,7 +202,7 @@ for tick in range(1000):
 
     add_energy_njit(C, ND, size, 5)
     #print("max: ", np.max(ND))
-    ND[~((C == 2) | (C == 3) | (C == 1))] = 0
+    ND[~((C == 2) | (C == 3))] = 0
     tumble_tiles_parallel_njit(ND, size, ss, 0, 0)
 
     if tick%1==0 and tick>0:
@@ -219,6 +218,7 @@ for tick in range(1000):
         nC = np.sum(C == 5)
         print(framecount, ",", nN, ",", nD, ",",  nQ, ",",  nC)
 
+        writer.append_data(out)
         writer.append_data(out)
 
 writer.close()
