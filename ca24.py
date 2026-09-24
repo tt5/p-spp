@@ -18,8 +18,8 @@ def tumble_njit(spile):
         spile[:, 1:] += tumbled[:, :-1]
     else:
         lut = np.array([3, 2, 1, 0])   # 0→3, 1→2, 2→1, 3→0
-        result = np.matrix(lut[spile.A]) + 1
-        spile[:] = result
+        result = lut[spile] + 1
+        spile[:] = result.astype(np.int8)
     return spile
 
 @njit(parallel=True)
