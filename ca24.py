@@ -10,7 +10,7 @@ from scipy.spatial import cKDTree
 
 @njit
 def tumble_njit(spile):
-    for i in range(4):
+    for i in range(1):
         if (spile > 3).any():
             tumbled, spile = np.divmod(spile, 4)
             spile[:-1, :] += tumbled[1:, :]
@@ -269,7 +269,7 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
-VIDEO_W, VIDEO_H = 42, 42
+VIDEO_W, VIDEO_H = 200, 200
 VIDEO_FPS = 60
 
 video_out_path = "new_video.mp4"
@@ -282,8 +282,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 21
-ss = 7
+size = 180
+ss = 6
 
 C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
@@ -382,6 +382,7 @@ for tick in range(4000):
                             gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     add_energy_njit(C, ND, size, 5)
+    #print("max: ", np.max(ND))
     ND[~((C == 2) | (C == 3) | (C == 4))] = 0
     tumble_tiles_parallel_njit(ND, size, ss, 0, 0)
 
