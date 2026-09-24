@@ -145,7 +145,7 @@ def birthND_njit(C, ND, size):
             C[y,x] = 2
 
 
-VIDEO_W, VIDEO_H = 192, 108
+VIDEO_W, VIDEO_H = 480, 270
 VIDEO_FPS = 60
 
 video_out_path = "new_video.mp4"
@@ -158,8 +158,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 100
-ss = 4
+size = 270
+ss = 3
 
 C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
@@ -191,7 +191,7 @@ _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.ui
 
 framecount = 0
 print("time,", "N,", "D,", "Q,", "C")
-for tick in range(1000):
+for tick in range(4000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -218,7 +218,6 @@ for tick in range(1000):
         nC = np.sum(C == 5)
         print(framecount, ",", nN, ",", nD, ",",  nQ, ",",  nC)
 
-        writer.append_data(out)
         writer.append_data(out)
 
 writer.close()
