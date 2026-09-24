@@ -181,7 +181,7 @@ def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
                 elif j == 5 and nD == 0:
                     dy, dx = deltas[i]
                     C[y + dy, x + dx] = 4
-                    break
+                    #break
 
 @njit
 def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
@@ -269,7 +269,7 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
-VIDEO_W, VIDEO_H = 200, 200
+VIDEO_W, VIDEO_H = 42, 42
 VIDEO_FPS = 60
 
 video_out_path = "new_video.mp4"
@@ -282,7 +282,7 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 63
+size = 21
 ss = 7
 
 C = np.zeros((size,size), dtype='int8')
@@ -315,15 +315,16 @@ nodes = nx.complete_graph(4)
 for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)]):
     nodes.nodes[i].update({
         'x': x, 'y': y,
-        'a0': 0.5, 'alpha': 2.0, 'gamma': 1.0,
-        'cAA': 4.0, 'cAC': 2.0, 'cCC': 1.0,
+        'a0': 0.5, 'alpha': 2.0, 'gamma': 1.3,
+        'cAA': 2.0, 'cAC': 1.5, 'cCC': 1.4,
     })
 
 # Initial conditions
 C = C+3
 
 #C[24:74, 0:] = 5
-C[16:18, 0:] = 5
+#C[3:6, 0:] = 5
+C[10:13, 0:] = 5
 
 C[1:3, 1:-1] = 4
 C[1:-1, 1:3] = 4
@@ -359,7 +360,7 @@ _COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
-for tick in range(8000):
+for tick in range(4000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -380,8 +381,8 @@ for tick in range(8000):
         compute_param_grids(nodes, size, a0_grid, alpha_grid,
                             gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
-    add_energy_njit(C, ND, size, 4)
-    ND[~((C == 2) | (C == 3))] = 0
+    add_energy_njit(C, ND, size, 5)
+    ND[~((C == 2) | (C == 3) | (C == 4))] = 0
     tumble_tiles_parallel_njit(ND, size, ss, 0, 0)
 
     if tick%1==0 and tick>0:
