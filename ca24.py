@@ -19,7 +19,7 @@ def tumble_njit(spile):
             spile[:, 1:] += tumbled[:, :-1]
         else:
             if i == 0:
-                spile[:] = 2
+                spile[:] = 5
             break
     return spile
 
@@ -97,7 +97,9 @@ def remove_queens_njit(C, size):
             nC += 1
         if west == 5:
             nC += 1
-        if nA >= 4 or nC >= 4:
+        if nA >= 4:
+            C[y, x] = 4
+        if nC >= 4:
             C[y, x] = 5
 
 @njit
@@ -269,8 +271,8 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
-VIDEO_W, VIDEO_H = 200, 200
-VIDEO_FPS = 60
+VIDEO_W, VIDEO_H = 32, 18
+VIDEO_FPS = 20
 
 video_out_path = "new_video.mp4"
 writer = imageio.get_writer(
@@ -282,7 +284,7 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 150
+size = 10
 ss = 5
 
 C = np.zeros((size,size), dtype='int8')
@@ -353,7 +355,7 @@ _COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
-for tick in range(4000):
+for tick in range(500):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
@@ -376,7 +378,7 @@ for tick in range(4000):
 
     add_energy_njit(C, ND, size, 5)
     #print("max: ", np.max(ND))
-    ND[~((C == 2) | (C == 3) | (C == 4))] = 0
+    ND[~((C == 2) | (C == 3) | (C == 1))] = 0
     tumble_tiles_parallel_njit(ND, size, ss, 0, 0)
 
     if tick%1==0 and tick>0:
