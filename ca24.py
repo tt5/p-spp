@@ -322,15 +322,7 @@ for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)])
 # Initial conditions
 C = C+3
 
-#C[24:74, 0:] = 5
-#C[3:6, 0:] = 5
-#C[10:13, 0:] = 5
-C[-4:-7, 0:] = 5
-
-C[1:3, 1:-1] = 4
-C[1:-1, 1:3] = 4
-C[-3:-1, 1:-1] = 4
-C[1:-1, -3:-1] = 4
+C[-5:-2, :] = 5
 
 # Compute per-cell parameter grids from current node positions
 compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
