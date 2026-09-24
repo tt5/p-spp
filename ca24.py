@@ -79,16 +79,7 @@ def remove_queens_njit(C, size):
             east = C[y, x + 1]
         if x > 0:
             west = C[y, x - 1]
-        nA = 0
         nC = 0
-        if north == 4:
-            nA += 1
-        if south == 4:
-            nA += 1
-        if east == 4:
-            nA += 1
-        if west == 4:
-            nA += 1
         if north == 5:
             nC += 1
         if south == 5:
@@ -97,8 +88,6 @@ def remove_queens_njit(C, size):
             nC += 1
         if west == 5:
             nC += 1
-        if nA >= 4:
-            C[y, x] = 4
         if nC >= 4:
             C[y, x] = 5
 
@@ -111,83 +100,7 @@ def add_energy_njit(C, ND, size, energy):
         ND[y, x] = ND[y, x] + energy
 
 @njit
-def _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest):
-    nN = nD = nA = nC = 0
-    if north == 2: nN += 1
-    elif north == 3: nD += 1
-    elif north == 1: nA += 1
-    elif north == 5: nC += 1
-    if south == 2: nN += 1
-    elif south == 3: nD += 1
-    elif south == 1: nA += 1
-    elif south == 5: nC += 1
-    if east == 2: nN += 1
-    elif east == 3: nD += 1
-    elif east == 1: nA += 1
-    elif east == 5: nC += 1
-    if west == 2: nN += 1
-    elif west == 3: nD += 1
-    elif west == 1: nA += 1
-    elif west == 5: nC += 1
-    if northeast == 2: nN += 1
-    elif northeast == 3: nD += 1
-    elif northeast == 1: nA += 1
-    elif northeast == 5: nC += 1
-    if northwest == 2: nN += 1
-    elif northwest == 3: nD += 1
-    elif northwest == 1: nA += 1
-    elif northwest == 5: nC += 1
-    if southeast == 2: nN += 1
-    elif southeast == 3: nD += 1
-    elif southeast == 1: nA += 1
-    elif southeast == 5: nC += 1
-    if southwest == 2: nN += 1
-    elif southwest == 3: nD += 1
-    elif southwest == 1: nA += 1
-    elif southwest == 5: nC += 1
-    return nN, nD, nA, nC
-
-@njit
-def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
-    """Per-cell eatA: pkill computed from spatial parameter grids."""
-    ys, xs = np.where(C == 4)
-    deltas = ((-1,0),(1,0),(0,1),(0,-1),(-1,1),(-1,-1),(1,1),(1,-1))
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
-        north = south = east = west = northeast = northwest = southeast = southwest = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        if y>0 and x<size-1: northeast = C[y-1,x+1]
-        if y>0 and x>0: northwest = C[y-1,x-1]
-        if y<size-1 and x<size-1: southeast = C[y+1,x+1]
-        if y<size-1 and x>0: southwest = C[y+1,x-1]
-        nN, nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
-        nb = (north, south, east, west, northeast, northwest, southeast, southwest)
-        if nN > 0:
-            denomA = 1 + cAC_grid[y,x]*nC
-            pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
-            if pkill >= 0.5:
-                for i in range(8):
-                    if nb[i] == 2:
-                        dy, dx = deltas[i]
-                        C[y + dy, x + dx] = 4
-        else:
-            for i in range(8):
-                j = nb[i]
-                if j == 3:
-                    dy, dx = deltas[i]
-                    C[y + dy, x + dx] = 4
-                elif j == 5 and nD == 0:
-                    dy, dx = deltas[i]
-                    C[y + dy, x + dx] = 4
-                    #break
-
-@njit
-def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
-    """Per-cell eatC: pkill computed from spatial parameter grids."""
+def eatC_njit(C, size):
     ys, xs = np.where(C == 5)
     deltas = ((-1,0),(1,0),(0,1),(0,-1),(-1,1),(-1,-1),(1,1),(1,-1))
     for k in range(ys.shape[0]):
@@ -202,15 +115,9 @@ def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
         if y>0 and x>0: northwest = C[y-1,x-1]
         if y<size-1 and x<size-1: southeast = C[y+1,x+1]
         if y<size-1 and x>0: southwest = C[y+1,x-1]
-        nN, nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
             if j == 2:
-                denomC = 1 + cCC_grid[y,x] - gamma_grid[y,x]*nC
-                denomC = max(denomC, 1e-6)
-                pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomC, 1))
-                if pkill < 0.5:
-                    break
                 dy, dx = deltas[i]
                 ny = y + dy
                 nx = x + dx
@@ -239,39 +146,7 @@ def birthND_njit(C, ND, size):
             C[y,x] = 2
 
 
-def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_cAC, out_cCC):
-    if len(nodes) == 0:
-        out_a0.fill(0); out_alpha.fill(0); out_gamma.fill(0)
-        out_cAA.fill(0); out_cAC.fill(0); out_cCC.fill(0)
-        return
-    node_ids = list(nodes.nodes())
-    N_nodes = len(node_ids)
-    node_xy = np.empty((N_nodes, 2), dtype='float64')
-    node_params = np.empty((N_nodes, 6), dtype='float64')
-    for i, nid in enumerate(node_ids):
-        nd = nodes.nodes[nid]
-        node_xy[i, 0] = nd['x']
-        node_xy[i, 1] = nd['y']
-        node_params[i, 0] = nd['a0']
-        node_params[i, 1] = nd['alpha']
-        node_params[i, 2] = nd['gamma']
-        node_params[i, 3] = nd['cAA']
-        node_params[i, 4] = nd['cAC']
-        node_params[i, 5] = nd['cCC']
-
-    # Nearest-neighbour (Voronoi): cKDTree query.
-    tree = cKDTree(node_xy)
-    _, best_node = tree.query(_coords_array, k=1)
-
-    out_a0.ravel()  [:] = node_params[best_node, 0]
-    out_alpha.ravel()[:] = node_params[best_node, 1]
-    out_gamma.ravel()[:] = node_params[best_node, 2]
-    out_cAA.ravel()  [:] = node_params[best_node, 3]
-    out_cAC.ravel()  [:] = node_params[best_node, 4]
-    out_cCC.ravel()  [:] = node_params[best_node, 5]
-    return
-
-VIDEO_W, VIDEO_H = 320, 180
+VIDEO_W, VIDEO_H = 192, 108
 VIDEO_FPS = 60
 
 video_out_path = "new_video.mp4"
@@ -284,27 +159,11 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 100
+size = 105
 ss = 5
 
 C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
-
-# Pre-allocated parameter grids — reused across every compute_param_grids call.
-a0_grid = np.zeros((size, size), dtype='float64')
-alpha_grid = np.zeros((size, size), dtype='float64')
-gamma_grid = np.zeros((size, size), dtype='float64')
-cAA_grid = np.zeros((size, size), dtype='float64')
-cAC_grid = np.zeros((size, size), dtype='float64')
-cCC_grid = np.zeros((size, size), dtype='float64')
-
-# Precomputed per-cell coordinate vectors (row-major, shape (size*size,)).
-# _cell_x[i] = x-coord of cell i, _cell_y[i] = y-coord of cell i.
-# Depends only on `size`, which is constant, so built once.
-_cell_x = np.tile(np.arange(size, dtype='float64'), size)
-_cell_y = np.repeat(np.arange(size, dtype='float64'), size)
-# Precomputed coordinate array for cKDTree query — built once.
-_coords_array = np.column_stack([_cell_x, _cell_y])
 
 # 1 queen
 # 2 N
@@ -312,33 +171,10 @@ _coords_array = np.column_stack([_cell_x, _cell_y])
 # 4 A
 # 5 C
 
-nodes = nx.complete_graph(4)
-
-for i, (x, y) in enumerate([(0, 0), (size-1, 0), (0, size-1), (size-1, size-1)]):
-    nodes.nodes[i].update({
-        'x': x, 'y': y,
-        'a0': 0.5, 'alpha': 2.0, 'gamma': 1.3,
-        'cAA': 2.0, 'cAC': 1.5, 'cCC': 1.4,
-    })
-
 # Initial conditions
 C = C+3
 
 C[-5:-2, :] = 5
-
-# Compute per-cell parameter grids from current node positions
-compute_param_grids(nodes, size, a0_grid, alpha_grid, gamma_grid, cAA_grid, cAC_grid, cCC_grid)
-
-a0 = 0.5
-alpha = 1.8
-gamma = 1.0
-cAA = 8.0
-cAC = 2.0
-cCC = 1.0
-
-INJECTION_SCHEDULE = {
-    #42: (size//2,     size//2),
-}
 
 OFFY = (VIDEO_H - size) // 2
 OFFX = (VIDEO_W - size) // 2
@@ -355,27 +191,15 @@ _COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
-print("time,", "N,", "D,", "A,", "C")
-for tick in range(2000):
+print("time,", "N,", "D,", "Q,", "C")
+for tick in range(1000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
 
     birthND_njit(C, ND, size)
-    eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
+    eatC_njit(C, size)
     #eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
-
-    inject = INJECTION_SCHEDULE.get(tick)
-    if inject is not None:
-        x, y = inject
-        new_id = len(nodes)
-        nodes.add_node(new_id, x=x, y=y, a0=a0, alpha=alpha, gamma=gamma,
-                       cAA=cAA, cAC=cAC, cCC=cCC)
-        for existing in range(new_id):
-            nodes.add_edge(new_id, existing)
-        nodes.nodes[new_id]['chips'] = 0
-        compute_param_grids(nodes, size, a0_grid, alpha_grid,
-                            gamma_grid, cAA_grid, cAC_grid, cCC_grid)
 
     add_energy_njit(C, ND, size, 5)
     #print("max: ", np.max(ND))
@@ -391,9 +215,9 @@ for tick in range(2000):
 
         nN = np.sum(C == 2)
         nD = np.sum(C == 3)
-        nA = np.sum(C == 1)
+        nQ = np.sum(C == 1)
         nC = np.sum(C == 5)
-        print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
+        print(framecount, ",", nN, ",", nD, ",",  nQ, ",",  nC)
 
         writer.append_data(out)
 
