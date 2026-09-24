@@ -19,7 +19,7 @@ def tumble_njit(spile):
             spile[:, 1:] += tumbled[:, :-1]
         else:
             if i == 0:
-                spile[:] = 5
+                spile[:] = 1
             break
     return spile
 
@@ -115,35 +115,35 @@ def _count_neighbors8(north, south, east, west, northeast, northwest, southeast,
     nN = nD = nA = nC = 0
     if north == 2: nN += 1
     elif north == 3: nD += 1
-    elif north == 4: nA += 1
+    elif north == 1: nA += 1
     elif north == 5: nC += 1
     if south == 2: nN += 1
     elif south == 3: nD += 1
-    elif south == 4: nA += 1
+    elif south == 1: nA += 1
     elif south == 5: nC += 1
     if east == 2: nN += 1
     elif east == 3: nD += 1
-    elif east == 4: nA += 1
+    elif east == 1: nA += 1
     elif east == 5: nC += 1
     if west == 2: nN += 1
     elif west == 3: nD += 1
-    elif west == 4: nA += 1
+    elif west == 1: nA += 1
     elif west == 5: nC += 1
     if northeast == 2: nN += 1
     elif northeast == 3: nD += 1
-    elif northeast == 4: nA += 1
+    elif northeast == 1: nA += 1
     elif northeast == 5: nC += 1
     if northwest == 2: nN += 1
     elif northwest == 3: nD += 1
-    elif northwest == 4: nA += 1
+    elif northwest == 1: nA += 1
     elif northwest == 5: nC += 1
     if southeast == 2: nN += 1
     elif southeast == 3: nD += 1
-    elif southeast == 4: nA += 1
+    elif southeast == 1: nA += 1
     elif southeast == 5: nC += 1
     if southwest == 2: nN += 1
     elif southwest == 3: nD += 1
-    elif southwest == 4: nA += 1
+    elif southwest == 1: nA += 1
     elif southwest == 5: nC += 1
     return nN, nD, nA, nC
 
@@ -167,7 +167,7 @@ def eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid):
         nN, nD, nA, nC = _count_neighbors8(north, south, east, west, northeast, northwest, southeast, southwest)
         nb = (north, south, east, west, northeast, northwest, southeast, southwest)
         if nN > 0:
-            denomA = 1 + cAA_grid[y,x]*nA + cAC_grid[y,x]*nC
+            denomA = 1 + cAC_grid[y,x]*nC
             pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomA, 1))
             if pkill >= 0.5:
                 for i in range(8):
@@ -206,7 +206,7 @@ def eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid):
         for i in range(8):
             j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
             if j == 2:
-                denomC = 1 + cCC_grid[y,x] - gamma_grid[y,x]*nC + cAC_grid[y,x]*nA
+                denomC = 1 + cCC_grid[y,x] - gamma_grid[y,x]*nC
                 denomC = max(denomC, 1e-6)
                 pkill = max(0, min((a0_grid[y,x] + alpha_grid[y,x]*nD) / denomC, 1))
                 if pkill < 0.5:
@@ -271,8 +271,8 @@ def compute_param_grids(nodes, size, out_a0, out_alpha, out_gamma, out_cAA, out_
     out_cCC.ravel()  [:] = node_params[best_node, 5]
     return
 
-VIDEO_W, VIDEO_H = 32, 18
-VIDEO_FPS = 20
+VIDEO_W, VIDEO_H = 320, 180
+VIDEO_FPS = 60
 
 video_out_path = "new_video.mp4"
 writer = imageio.get_writer(
@@ -284,7 +284,7 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 10
+size = 100
 ss = 5
 
 C = np.zeros((size,size), dtype='int8')
@@ -355,14 +355,15 @@ _COL_E = np.array([0, 0, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.uint8)
 
 framecount = 0
-for tick in range(500):
+print("time,", "N,", "D,", "A,", "C")
+for tick in range(2000):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
 
     birthND_njit(C, ND, size)
     eatC_njit(C, size, a0_grid, alpha_grid, gamma_grid, cAC_grid, cCC_grid)
-    eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
+    #eatA_njit(C, size, a0_grid, alpha_grid, cAA_grid, cAC_grid)
 
     inject = INJECTION_SCHEDULE.get(tick)
     if inject is not None:
@@ -388,7 +389,11 @@ for tick in range(500):
 
         out[OFFY:OFFY+size, OFFX:OFFX+size, :] = frame
 
-        print(tick)
+        nN = np.sum(C == 2)
+        nD = np.sum(C == 3)
+        nA = np.sum(C == 1)
+        nC = np.sum(C == 5)
+        print(framecount, ",", nN, ",", nD, ",",  nA, ",",  nC)
 
         writer.append_data(out)
 
