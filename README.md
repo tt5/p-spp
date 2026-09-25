@@ -16,3 +16,7 @@ NDN -> NQN
 ## birthND
 
 overwrite all non-queen cells → D if exactly 3 N neighbors, else N.
+
+---
+
+https://en.wikipedia.org/wiki/Asynchronous_cellular_automaton

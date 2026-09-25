@@ -4,6 +4,6 @@
 !data/*.png
 !archive/frak2.png
 **/*.txt
-Untitled.ipynb
+**/*Untitled*.ipynb
 .ipynb_checkpoints/
 __pycache__
