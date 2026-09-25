@@ -17,6 +17,7 @@ def tumble_njit(spile):
         spile[:, :-1] += tumbled[:, 1:]
         spile[:, 1:] += tumbled[:, :-1]
     else:
+        #print("rev")
         lut = np.array([3, 2, 1, 0])   # 0→3, 1→2, 2→1, 3→0
         result = lut[spile] + 1
         spile[:] = result.astype(np.int8)
@@ -35,6 +36,27 @@ def tumble_tiles_parallel_njit(T, size, ss, off_y, off_x):
         if y1 > y0 and x1 > x0 and y0 >= 0 and x0 >= 0 and y0 < size and x0 < size:
             sub = T[y0:y1, x0:x1].copy()
             T[y0:y1, x0:x1] = tumble_njit(sub)
+
+@njit
+def birthND_njit(C, ND, size):
+    ys, xs = np.where(ND > 0)
+    for k in range(ys.shape[0]):
+        y = ys[k]
+        x = xs[k]
+        north = south = east = west = 0
+        if y>0: north = C[y-1,x]
+        if y<size-1: south = C[y+1,x]
+        if x<size-1: east = C[y,x+1]
+        if x>0: west = C[y,x-1]
+        nN = 0
+        if north == 2: nN += 1
+        if south == 2: nN += 1
+        if east == 2: nN += 1
+        if west == 2: nN += 1
+        if nN == 3:
+            C[y,x] = 3
+        else:
+            C[y,x] = 2
 
 @njit
 def promote_queens_njit(C, size):
@@ -90,64 +112,9 @@ def remove_queens_njit(C, size):
         if nC >= 4:
             C[y, x] = 5
 
-@njit
-def add_energy_njit(C, ND, size, energy):
-    ys, xs = np.where(C == 3)
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
-        ND[y, x] = 4
 
-@njit
-def eatC_njit(C, size):
-    ys, xs = np.where(C == 5)
-    deltas = ((-1,0),(1,0),(0,1),(0,-1),(-1,1),(-1,-1),(1,1),(1,-1))
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
-        north = south = east = west = northeast = northwest = southeast = southwest = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        if y>0 and x<size-1: northeast = C[y-1,x+1]
-        if y>0 and x>0: northwest = C[y-1,x-1]
-        if y<size-1 and x<size-1: southeast = C[y+1,x+1]
-        if y<size-1 and x>0: southwest = C[y+1,x-1]
-        for i in range(8):
-            j = (north, south, east, west, northeast, northwest, southeast, southwest)[i]
-            if j == 2:
-                dy, dx = deltas[i]
-                ny = y + dy
-                nx = x + dx
-                C[ny, nx] = 5
-
-@njit
-def birthND_njit(C, ND, size):
-    ys, xs = np.where(ND > 0)
-    for k in range(ys.shape[0]):
-        y = ys[k]
-        x = xs[k]
-        north = south = east = west = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        nN = 0
-        if north == 2: nN += 1
-        if south == 2: nN += 1
-        if east == 2: nN += 1
-        if west == 2: nN += 1
-        if nN == 3:
-            C[y,x] = 3
-        else:
-            if C[y,x] != 1:
-                C[y,x] = 2
-
-
-#VIDEO_W, VIDEO_H = 1920, 1080
-VIDEO_W, VIDEO_H = 800, 800
-VIDEO_FPS = 60
+VIDEO_W, VIDEO_H = 1920, 1080
+VIDEO_FPS = 1
 
 video_out_path = "new_video.mp4"
 writer = imageio.get_writer(
@@ -159,8 +126,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 800
-ss = 8
+size = 1024
+ss = 4
 
 C = np.zeros((size,size), dtype='int8')
 ND = np.zeros((size,size), dtype='int')
@@ -173,8 +140,9 @@ ND = np.zeros((size,size), dtype='int')
 
 # Initial conditions
 C = C+3
+#ND = ND+1
 
-C[-5:-2, :] = 5
+#C[-5:-2, :] = 5
 
 OFFY = (VIDEO_H - size) // 2
 OFFX = (VIDEO_W - size) // 2
@@ -192,20 +160,15 @@ _COLORS = np.array([_COL_E, _COL_Q, _COL_N, _COL_D, _COL_A, _COL_C], dtype=np.ui
 
 framecount = 0
 print("time,", "N,", "D,", "Q,", "C")
-for tick in range(1000):
+for tick in range(30):
 
     promote_queens_njit(C, size)
     remove_queens_njit(C, size)
-
     birthND_njit(C, ND, size)
-    #eatC_njit(C, size)
 
-    #print("max: ", np.max(ND))
-    #ND[(C == 3)] = 5
-    #ND[(C == 5)] = 0
     tumble_tiles_parallel_njit(ND, size, ss, 0, 0)
 
-    if tick%1==0 and tick>0:
+    if tick%1==0 and tick>=0:
         framecount += 1
 
         np.take(_COLORS, C, axis=0, out=frame)
