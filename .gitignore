@@ -2,6 +2,7 @@
 **/*.wav
 **/*.png
 !data/*.png
+!archive/frak2.png
 **/*.txt
 Untitled.ipynb
 .ipynb_checkpoints/
