@@ -17,15 +17,21 @@ def tumble_njit(spile):
         spile[:, :-1] += tumbled[:, 1:]
         spile[:, 1:] += tumbled[:, :-1]
     else:
-        lut = _random_permute4()
+        #lut = _random_permute4()
+        lut = arr = np.array([3, 2, 1, 0])
         result = lut[spile] + 1
-        spile[:] = result.astype(np.int8)
+        spile[:] = result
+        tumbled, spile = np.divmod(spile, 4)
+        spile[:-1, :] += tumbled[1:, :]
+        spile[1:, :] += tumbled[:-1, :]
+        spile[:, :-1] += tumbled[:, 1:]
+        spile[:, 1:] += tumbled[:, :-1]
     return spile
 
 @njit
 def _random_permute4():
     """Numba-compatible random permutation of [3,2,1,0]."""
-    arr = np.array([3, 2, 1, 0], dtype=np.int8)
+    arr = np.array([3, 2, 1, 0])
     for i in range(3, 0, -1):
         j = np.random.randint(0, i + 1)
         arr[i], arr[j] = arr[j], arr[i]
@@ -45,6 +51,25 @@ def tumble_tiles_parallel_njit(T, size, ss, off_y, off_x):
             sub = T[y0:y1, x0:x1].copy()
             T[y0:y1, x0:x1] = tumble_njit(sub)
 
+
+# Pass 2a — vertical seams, parallel over seam index
+@njit(parallel=True)
+def boundary_vertical_njit(T, size, ss):
+    for j in prange(1, size // ss):
+        xL = j*ss - 1
+        xR = j*ss
+        T[:, xL] = (T[:, xL] + T[:, xR])%4
+        T[:, xR] = T[:, xL]
+
+# Pass 2b — horizontal seams, parallel over seam index
+@njit(parallel=True)
+def boundary_horizontal_njit(T, size, ss):
+    for i in prange(1, size // ss):
+        yT = i*ss - 1
+        yB = i*ss
+        T[yT, :] = (T[yT, :] + T[yB, :])%4
+        T[yB, :] = T[yT, :]
+
 VIDEO_W, VIDEO_H = 1920, 1080
 VIDEO_FPS = 30
 
@@ -61,7 +86,10 @@ writer = imageio.get_writer(
 size = 1024
 ss = 4
 
-C = np.zeros((size,size), dtype='int8')
+C = np.zeros((size,size), dtype='int')
+C = C+4
+#bsize = size//8
+#C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 0
 
 OFFY = (VIDEO_H - size) // 2
 OFFX = (VIDEO_W - size) // 2
@@ -73,18 +101,21 @@ _COL_0 = np.array([0, 0, 0], dtype=np.uint8)
 _COL_1 = np.array([0, 255, 0], dtype=np.uint8)
 _COL_2 = np.array([255, 255, 255], dtype=np.uint8)
 _COL_3 = np.array([255, 0, 0], dtype=np.uint8)
-_COLORS = np.array([_COL_0, _COL_1, _COL_2, _COL_3], dtype=np.uint8)
+_COL_4 = np.array([0, 0, 255], dtype=np.uint8)
+_COLORS = np.array([_COL_0, _COL_1, _COL_2, _COL_3, _COL_4], dtype=np.uint8)
 
 framecount = 0
 print("time,", "0,", "1,", "2,", "3,")
-for tick in range(300):
+for tick in range(4000):
 
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
+    boundary_vertical_njit(C, size, ss)              # Pass 2a
+    boundary_horizontal_njit(C, size, ss)            # Pass 2b
 
-    if tick%1==0 and tick>0:
+    if tick%1==0 and tick>=0:
         framecount += 1
 
-        np.take(_COLORS, C, axis=0, out=frame)
+        np.take(_COLORS, np.clip(C, 0, 4), axis=0, out=frame)
 
         out[OFFY:OFFY+size, OFFX:OFFX+size, :] = frame
 
