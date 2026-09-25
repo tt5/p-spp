@@ -70,6 +70,17 @@ def boundary_horizontal_njit(T, size, ss):
         T[yT, :] = (T[yT, :] + T[yB, :])%4
         T[yB, :] = T[yT, :]
 
+
+@njit(parallel=True)
+def wrap_border_njit(T, size):
+    # outer wrap: left col touches right col, top row touches bottom row
+    # same rule as internal seams: both sides become (a+b)%4
+    T[:, 0] = (T[:, 0] + T[:, size - 1]) % 4
+    T[:, size - 1] = T[:, 0]
+    T[0, :] = (T[0, :] + T[size - 1, :]) % 4
+    T[size - 1, :] = T[0, :]
+
+
 VIDEO_W, VIDEO_H = 1920, 1080
 VIDEO_FPS = 30
 
@@ -83,13 +94,17 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 1024
-ss = 4
+size = 512
+ss = 8
 
 C = np.zeros((size,size), dtype='int')
 C = C+4
 #bsize = size//8
 #C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 0
+C[:1, :] = 0
+C[:, :1] = 0
+C[-1:-1, :] = 0
+C[:, -1:] = 0
 
 OFFY = (VIDEO_H - size) // 2
 OFFX = (VIDEO_W - size) // 2
@@ -111,6 +126,7 @@ for tick in range(4000):
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
     boundary_vertical_njit(C, size, ss)              # Pass 2a
     boundary_horizontal_njit(C, size, ss)            # Pass 2b
+    wrap_border_njit(C, size)                        # outer wrap
 
     if tick%1==0 and tick>=0:
         framecount += 1
