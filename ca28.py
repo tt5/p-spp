@@ -17,10 +17,19 @@ def tumble_njit(spile):
         spile[:, :-1] += tumbled[:, 1:]
         spile[:, 1:] += tumbled[:, :-1]
     else:
-        lut = np.random.permutation(np.array([3, 2, 1, 0]))   # 0→3, 1→2, 2→1, 3→0
+        lut = _random_permute4()
         result = lut[spile] + 1
         spile[:] = result.astype(np.int8)
     return spile
+
+@njit
+def _random_permute4():
+    """Numba-compatible random permutation of [3,2,1,0]."""
+    arr = np.array([3, 2, 1, 0], dtype=np.int8)
+    for i in range(3, 0, -1):
+        j = np.random.randint(0, i + 1)
+        arr[i], arr[j] = arr[j], arr[i]
+    return arr
 
 @njit(parallel=True)
 def tumble_tiles_parallel_njit(T, size, ss, off_y, off_x):
@@ -79,7 +88,7 @@ for tick in range(300):
 
         out[OFFY:OFFY+size, OFFX:OFFX+size, :] = frame
 
-        n0 = np.sum(C == 1)
+        n0 = np.sum(C == 0)
         n1 = np.sum(C == 1)
         n2 = np.sum(C == 2)
         n3 = np.sum(C == 3)
