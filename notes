@@ -37,3 +37,5 @@ Q reduces D birth and does not count as prey territory (energy is set to zero).
 C depeds on N. C eats N before C is attacked by A.
 
 Energy can destroy predators.
+
+ffmpeg -i new_video.mp4 -vf "scale=1280:720:flags=neighbor" -c:v libx264 -crf 18 -c:a copy output.mp4

@@ -81,7 +81,8 @@ def wrap_border_njit(T, size):
     T[size - 1, :] = T[0, :]
 
 
-VIDEO_W, VIDEO_H = 1920, 1080
+#VIDEO_W, VIDEO_H = 1920, 1080
+VIDEO_W, VIDEO_H = 960, 540
 VIDEO_FPS = 30
 
 video_out_path = "new_video.mp4"
@@ -94,8 +95,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-size = 512
-ss = 8
+size = 6*64
+ss = 64
 
 C = np.zeros((size,size), dtype='int')
 C = C+4
@@ -103,7 +104,7 @@ C = C+4
 #C[size//2-bsize-1:size//2+bsize-1, size//2-bsize-1:size//2+bsize-1] = 0
 C[:1, :] = 0
 C[:, :1] = 0
-C[-1:-1, :] = 0
+C[-1:, :] = 0
 C[:, -1:] = 0
 
 OFFY = (VIDEO_H - size) // 2
@@ -112,23 +113,28 @@ OFFX = (VIDEO_W - size) // 2
 out   = np.zeros((VIDEO_H, VIDEO_W, 3), dtype=np.uint8)
 frame = np.zeros((size, size, 3), dtype=np.uint8)
 
+#_COL_0 = np.array([0, 0, 0], dtype=np.uint8)
+#_COL_1 = np.array([0, 255, 0], dtype=np.uint8)
+#_COL_2 = np.array([255, 255, 255], dtype=np.uint8)
+#_COL_3 = np.array([255, 0, 0], dtype=np.uint8)
+#_COL_4 = np.array([0, 0, 255], dtype=np.uint8)
 _COL_0 = np.array([0, 0, 0], dtype=np.uint8)
-_COL_1 = np.array([0, 255, 0], dtype=np.uint8)
-_COL_2 = np.array([255, 255, 255], dtype=np.uint8)
-_COL_3 = np.array([255, 0, 0], dtype=np.uint8)
-_COL_4 = np.array([0, 0, 255], dtype=np.uint8)
+_COL_1 = np.array([16, 16, 16], dtype=np.uint8)
+_COL_2 = np.array([24, 24, 24], dtype=np.uint8)
+_COL_3 = np.array([31, 31, 31], dtype=np.uint8)
+_COL_4 = np.array([255, 255, 0], dtype=np.uint8)
 _COLORS = np.array([_COL_0, _COL_1, _COL_2, _COL_3, _COL_4], dtype=np.uint8)
 
 framecount = 0
 print("time,", "0,", "1,", "2,", "3,")
-for tick in range(4000):
+for tick in range(1500):
 
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
     boundary_vertical_njit(C, size, ss)              # Pass 2a
     boundary_horizontal_njit(C, size, ss)            # Pass 2b
     wrap_border_njit(C, size)                        # outer wrap
 
-    if tick%1==0 and tick>=0:
+    if tick%1==0 and tick>=1300:
         framecount += 1
 
         np.take(_COLORS, np.clip(C, 0, 4), axis=0, out=frame)
@@ -141,6 +147,8 @@ for tick in range(4000):
         n3 = np.sum(C == 3)
         print(framecount, ",", n0, ",", n1, ",",  n2, ",",  n3)
 
+        writer.append_data(out)
+        writer.append_data(out)
         writer.append_data(out)
 
 writer.close()
