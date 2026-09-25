@@ -37,27 +37,27 @@ def promote_queens_njit(C, size):
 
 @njit
 def birthND_njit(C, size):
-    ys, xs = np.indices((size, size)).reshape(2, -1)
-
-    for k in range(size*size):
-        y = ys[k]
-        x = xs[k]
-        north = south = east = west = 0
-        if y>0: north = C[y-1,x]
-        if y<size-1: south = C[y+1,x]
-        if x<size-1: east = C[y,x+1]
-        if x>0: west = C[y,x-1]
-        nN = 0
-        if north == 2: nN += 1
-        if south == 2: nN += 1
-        if east == 2: nN += 1
-        if west == 2: nN += 1
-        if nN == 3:
-            C[y,x] = 3
-        else:
-            if C[y,x] != 1:
-                C[y,x] = 2
-
+    for y in range(size):
+        for x in range(size):
+            north = south = east = west = 0
+            if y > 0:
+                north = C[y - 1, x]
+            if y < size - 1:
+                south = C[y + 1, x]
+            if x < size - 1:
+                east = C[y, x + 1]
+            if x > 0:
+                west = C[y, x - 1]
+            nN = 0
+            if north == 2: nN += 1
+            if south == 2: nN += 1
+            if east == 2: nN += 1
+            if west == 2: nN += 1
+            if nN == 3:
+                C[y, x] = 3
+            else:
+                if C[y, x] != 1:
+                    C[y, x] = 2
 
 VIDEO_W, VIDEO_H = 1920, 1080
 VIDEO_FPS = 30
