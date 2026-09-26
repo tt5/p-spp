@@ -119,4 +119,3 @@ for tick in range(300):
         writer.append_data(out)
 
 writer.close()
-np.save('frak2', C)
