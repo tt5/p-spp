@@ -59,7 +59,7 @@ def boundary_vertical_njit(T, size, ss):
         xL = j*ss - 1
         xR = j*ss
         T[:, xL] = (T[:, xL] + T[:, xR])%4
-        T[:, xR] = T[:, xL] + 1
+        T[:, xR] = T[:, xL]
 
 # Pass 2b — horizontal seams, parallel over seam index
 @njit(parallel=True)
@@ -76,9 +76,9 @@ def wrap_border_njit(T, size):
     # outer wrap: left col touches right col, top row touches bottom row
     # same rule as internal seams: both sides become (a+b)%4
     T[:, size - 1] = (T[:, 0] + T[:, 0]) % 4
-    T[:, 0] = T[:, 0] + 1
+    T[:, 0] = T[:, 0]
     T[0, :] = (T[0, :] + T[size - 1, :]) % 4
-    T[size - 1, :] = T[0, :]
+    T[size - 1, :] = T[0, :] + 1
 
 
 #VIDEO_W, VIDEO_H = 192, 108
