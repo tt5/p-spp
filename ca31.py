@@ -59,7 +59,7 @@ def boundary_vertical_njit(T, size, ss):
         xL = j*ss - 1
         xR = j*ss
         T[:, xL] = (T[:, xL] + T[:, xR])%4
-        T[:, xR] = T[:, xL]
+        T[:, xR] = (T[:, xL] + 1
 
 # Pass 2b — horizontal seams, parallel over seam index
 @njit(parallel=True)
@@ -68,17 +68,19 @@ def boundary_horizontal_njit(T, size, ss):
         yT = i*ss - 1
         yB = i*ss
         T[yT, :] = (T[yT, :] + T[yB, :])%4
-        T[yB, :] = T[yT, :]
+        T[yB, :] = T[yT, :] + 1
 
 
 @njit(parallel=True)
 def wrap_border_njit(T, size):
     # outer wrap: left col touches right col, top row touches bottom row
     # same rule as internal seams: both sides become (a+b)%4
-    T[:, size - 1] = (T[:, 0] + T[:, 0]) % 4
-    T[:, 0] = T[:, 0]
+    T[:, 0] = (T[:, 0] + T[:, size - 1]) % 4
+    T[:, size - 1] = T[:, 0]
+    T[:, 0] = T[:, 0] + 1
     T[0, :] = (T[0, :] + T[size - 1, :]) % 4
-    T[size - 1, :] = T[0, :] + 1
+    T[size - 1, :] = T[0, :]
+    T[0, :] = T[0, :] + 1
 
 
 #VIDEO_W, VIDEO_H = 192, 108
@@ -152,8 +154,8 @@ for tick in range(4000):
     #    C[size//2-1:size//2+1, size//2-1:size//2+1] = 6
 
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
-    boundary_vertical_njit(C, size, ss)              # Pass 2a
     boundary_horizontal_njit(C, size, ss)            # Pass 2b
+    boundary_vertical_njit(C, size, ss)              # Pass 2a
     wrap_border_njit(C, size)                        # outer wrap
 
     if tick%1==0 and tick>=0:
