@@ -17,7 +17,6 @@ def tumble_njit(spile):
         spile[:, :-1] += tumbled[:, 1:]
         spile[:, 1:] += tumbled[:, :-1]
     else:
-        print("rev")
         #lut = _random_permute4()
         lut = arr = np.array([3, 2, 1, 0])
         result = lut[spile] + 1
@@ -143,7 +142,7 @@ def corner_pass_njit(T, size, ss):
             T[y, x] = tmp[y, x]
 
 
-#VIDEO_W, VIDEO_H = 192, 108
+VIDEO_W, VIDEO_H = 48, 27
 VIDEO_FPS = 30
 
 video_out_path = "new_video.mp4"
@@ -157,19 +156,19 @@ writer = imageio.get_writer(
 )
 
 ss = 5
-size = ss*5
+size = ss*3
 
-VIDEO_W, VIDEO_H = size, size
+#VIDEO_W, VIDEO_H = size, size
 
 C = np.zeros((size,size), dtype='int')
-C = C+2
+C = C+4
 bsize = ss//2
 if size%2==0:
-    C[size//2-bsize:size//2+bsize, size//2-bsize:size//2+bsize] = 4
+    C[size//2-bsize:size//2+bsize, size//2-bsize:size//2+bsize] = 2
     #C[size//2-bsize:size//2+bsize, size//2-bsize+ss:size//2+bsize+ss] = 0
     #C[size//2-bsize:size//2+bsize, size//2-bsize-ss:size//2+bsize-ss] = 0
 else:
-    C[size//2-bsize:size//2+bsize+1, size//2-bsize:size//2+bsize+1] = 4
+    C[size//2-bsize:size//2+bsize+1, size//2-bsize:size//2+bsize+1] = 2
 
 #bsize = 1
 #if size%2==0:
@@ -209,7 +208,8 @@ _COLORS = np.array([_COL_0, _COL_1, _COL_2, _COL_3, _COL_4], dtype=np.uint8)
 
 framecount = 0
 print("time,", "0,", "1,", "2,", "3,")
-for tick in range(4000):
+_seen = {}   # fingerprint -> tick   (first-repeat detection)
+for tick in range(3956+13*18):
     #if tick == 400:
     #    C[size//2-1:size//2+1, size//2-1:size//2+1] = 6
 
@@ -220,7 +220,15 @@ for tick in range(4000):
     wrap_borderh_njit(C, size)                        # outer wrap (h)
     corner_pass_njit(C, size, ss)                     # corner + crosspoint wrap
 
-    if tick%1==0 and tick>=0:
+    #fp = hash(C.tobytes())
+    #if fp in _seen:
+    #    prev = _seen[fp]
+    #    print(f"detected first repeat at tick={tick}, previously seen at tick={prev}, "
+    #          f"period={tick - prev}")
+    #    #break
+    #_seen[fp] = tick
+
+    if tick%1==0 and tick>=3956:
         framecount += 1
 
         np.take(_COLORS, np.clip(C, 0, 4), axis=0, out=frame)
@@ -233,6 +241,8 @@ for tick in range(4000):
         n3 = np.sum(C == 3)
         print(framecount, ",", n0, ",", n1, ",",  n2, ",",  n3)
 
+        writer.append_data(out)
+        writer.append_data(out)
         writer.append_data(out)
         writer.append_data(out)
 
