@@ -96,7 +96,7 @@ writer = imageio.get_writer(
 )
 
 ss = 16
-size = ss*3
+size = ss*5
 
 VIDEO_W, VIDEO_H = size, size
 
