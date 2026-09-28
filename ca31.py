@@ -53,33 +53,37 @@ def tumble_tiles_parallel_njit(T, size, ss, off_y, off_x):
 
 
 # Pass 2a — vertical seams, parallel over seam index
-# Skip crosspoints with horizontal seams (rows yT/yB) so the two passes
-# don't race on the intersection cells.
+# Skip crosspoints with horizontal seams (rows yT/yB) plus the start/end
+# points (y=0, y=size-1) so the two passes don't race on intersection cells
+# and border cells are left for the wrap passes.
 @njit(parallel=True)
 def boundary_vertical_njit(T, size, ss):
     for j in prange(1, size // ss):
         xL = j*ss - 1
         xR = j*ss
         for y in range(size):
-            # skip horizontal-seam rows: y in {i*ss-1, i*ss} for i=1..(size//ss - 1)
-            # i.e. y%ss==ss-1 or y%ss==0, but not the wrap-border rows y=0, y=size-1
-            if 0 < y < size - 1 and (y % ss == ss - 1 or y % ss == 0):
+            # skip border rows (y=0, y=size-1) and horizontal-seam rows
+            # y%ss==0 catches y=0,ss,2*ss,...
+            # y%ss==ss-1 catches y=ss-1,2*ss-1,...,size-1
+            if y % ss == 0 or y % ss == ss - 1:
                 continue
             T[y, xL] = (T[y, xL] + T[y, xR]) % 4
             T[y, xR] = T[y, xL]
 
 # Pass 2b — horizontal seams, parallel over seam index
-# Skip crosspoints with vertical seams (cols xL/xR) so the two passes
-# don't race on the intersection cells.
+# Skip crosspoints with vertical seams (cols xL/xR) plus the start/end
+# points (x=0, x=size-1) so the two passes don't race on intersection cells
+# and border cells are left for the wrap passes.
 @njit(parallel=True)
 def boundary_horizontal_njit(T, size, ss):
     for i in prange(1, size // ss):
         yT = i*ss - 1
         yB = i*ss
         for x in range(size):
-            # skip vertical-seam cols: x in {j*ss-1, j*ss} for j=1..(size//ss - 1)
-            # i.e. x%ss==ss-1 or x%ss==0, but not the wrap-border cols x=0, x=size-1
-            if 0 < x < size - 1 and (x % ss == ss - 1 or x % ss == 0):
+            # skip border cols (x=0, x=size-1) and vertical-seam cols
+            # x%ss==0 catches x=0,ss,2*ss,...
+            # x%ss==ss-1 catches x=ss-1,2*ss-1,...,size-1
+            if x % ss == 0 or x % ss == ss - 1:
                 continue
             T[yT, x] = (T[yT, x] + T[yB, x]) % 4
             T[yB, x] = T[yT, x]
@@ -168,9 +172,9 @@ for tick in range(6000):
 
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
     boundary_vertical_njit(C, size, ss)              # Pass 2a
-    #wrap_borderv_njit(C, size)                        # outer wrap
+    wrap_borderv_njit(C, size)                        # outer wrap
     boundary_horizontal_njit(C, size, ss)            # Pass 2b
-    #wrap_borderh_njit(C, size)                        # outer wrap
+    wrap_borderh_njit(C, size)                        # outer wrap
 
     if tick%1==0 and tick>=0:
         framecount += 1
