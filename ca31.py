@@ -58,7 +58,7 @@ def boundary_vertical_njit(T, size, ss):
     for j in prange(1, size // ss):
         xL = j*ss - 1
         xR = j*ss
-        T[:, xL] = ((T[:, xL] + T[:, xR])//2+1)%4
+        T[:, xL] = (T[:, xL] + T[:, xR])%4
         T[:, xR] = T[:, xL]
 
 # Pass 2b — horizontal seams, parallel over seam index
@@ -67,7 +67,7 @@ def boundary_horizontal_njit(T, size, ss):
     for i in prange(1, size // ss):
         yT = i*ss - 1
         yB = i*ss
-        T[yT, :] = ((T[yT, :] + T[yB, :])//2+1)%4
+        T[yT, :] = (T[yT, :] + T[yB, :])%4
         T[yB, :] = T[yT, :]
 
 
@@ -96,7 +96,7 @@ writer = imageio.get_writer(
 )
 
 ss = 16
-size = ss*5
+size = ss*3
 
 VIDEO_W, VIDEO_H = size, size
 
@@ -148,7 +148,7 @@ _COLORS = np.array([_COL_0, _COL_1, _COL_2, _COL_3, _COL_4], dtype=np.uint8)
 
 framecount = 0
 print("time,", "0,", "1,", "2,", "3,")
-for tick in range(4000):
+for tick in range(6000):
     #if tick == 400:
     #    C[size//2-1:size//2+1, size//2-1:size//2+1] = 6
 
