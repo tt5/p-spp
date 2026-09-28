@@ -17,6 +17,7 @@ def tumble_njit(spile):
         spile[:, :-1] += tumbled[:, 1:]
         spile[:, 1:] += tumbled[:, :-1]
     else:
+        print("rev")
         #lut = _random_permute4()
         lut = arr = np.array([3, 2, 1, 0])
         result = lut[spile] + 1
@@ -112,6 +113,36 @@ def wrap_borderh_njit(T, size):
         T[size - 1, x] = T[0, x]
 
 
+@njit
+def corner_pass_njit(T, size, ss):
+    """Reconcile every cell skipped by the four prior passes:
+       (y,x) with y%ss in {0,ss-1} AND x%ss in {0,ss-1}.
+       Includes seam-seam crosspoints, seam-border intersections, and the four
+       grid corners.  Neighbours are taken with wrapping (modulo size) so a cell
+       on a grid edge pairs across that edge.
+       Serial (no prange) and writes through a temp buffer so a corner cell never
+       reads a value written earlier in the same pass."""
+    tmp = np.empty((size, size), dtype=T.dtype)
+    for y in range(size):
+        if y % ss != 0 and y % ss != ss - 1:
+            continue
+        for x in range(size):
+            if x % ss != 0 and x % ss != ss - 1:
+                continue
+            uy = (y - 1) % size
+            dy = (y + 1) % size
+            lx = (x - 1) % size
+            rx = (x + 1) % size
+            tmp[y, x] = ((T[uy, x] + T[dy, x] + T[y, lx] + T[y, rx])//2) % 4
+    for y in range(size):
+        if y % ss != 0 and y % ss != ss - 1:
+            continue
+        for x in range(size):
+            if x % ss != 0 and x % ss != ss - 1:
+                continue
+            T[y, x] = tmp[y, x]
+
+
 #VIDEO_W, VIDEO_H = 192, 108
 VIDEO_FPS = 30
 
@@ -125,8 +156,8 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-ss = 16
-size = ss*3
+ss = 5
+size = ss*5
 
 VIDEO_W, VIDEO_H = size, size
 
@@ -138,8 +169,8 @@ if size%2==0:
     #C[size//2-bsize:size//2+bsize, size//2-bsize+ss:size//2+bsize+ss] = 0
     #C[size//2-bsize:size//2+bsize, size//2-bsize-ss:size//2+bsize-ss] = 0
 else:
-    C[size//2-bsize:size//2+bsize+1, size//2-bsize:size//2+bsize+1] = 0
-#
+    C[size//2-bsize:size//2+bsize+1, size//2-bsize:size//2+bsize+1] = 4
+
 #bsize = 1
 #if size%2==0:
 #    C[size//2-bsize:size//2+bsize, size//2-bsize:size//2+bsize] = 0
@@ -178,15 +209,16 @@ _COLORS = np.array([_COL_0, _COL_1, _COL_2, _COL_3, _COL_4], dtype=np.uint8)
 
 framecount = 0
 print("time,", "0,", "1,", "2,", "3,")
-for tick in range(6000):
+for tick in range(4000):
     #if tick == 400:
     #    C[size//2-1:size//2+1, size//2-1:size//2+1] = 6
 
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
     boundary_vertical_njit(C, size, ss)              # Pass 2a
-    wrap_borderv_njit(C, size)                        # outer wrap
+    wrap_borderv_njit(C, size)                        # outer wrap (v)
     boundary_horizontal_njit(C, size, ss)            # Pass 2b
-    wrap_borderh_njit(C, size)                        # outer wrap
+    wrap_borderh_njit(C, size)                        # outer wrap (h)
+    corner_pass_njit(C, size, ss)                     # corner + crosspoint wrap
 
     if tick%1==0 and tick>=0:
         framecount += 1
