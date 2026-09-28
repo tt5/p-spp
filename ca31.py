@@ -91,13 +91,25 @@ def boundary_horizontal_njit(T, size, ss):
 
 @njit(parallel=True)
 def wrap_borderv_njit(T, size):
-    T[:, 0] = (T[:, 0] + T[:, size - 1]) % 4
-    T[:, size - 1] = T[:, 0]
+    # skip seam rows (y%ss==0 or y%ss==ss-1) so border-seam intersections
+    # are not reconciled here; also skips the start/end border rows themselves
+    # (y=0, y=size-1) which are seam positions under the same condition.
+    for y in prange(0, size):
+        if y % ss == 0 or y % ss == ss - 1:
+            continue
+        T[y, 0] = (T[y, 0] + T[y, size - 1]) % 4
+        T[y, size - 1] = T[y, 0]
 
 @njit(parallel=True)
 def wrap_borderh_njit(T, size):
-    T[0, :] = (T[0, :] + T[size - 1, :]) % 4
-    T[size - 1, :] = T[0, :]
+    # skip seam cols (x%ss==0 or x%ss==ss-1) so border-seam intersections
+    # are not reconciled here; also skips the start/end border cols themselves
+    # (x=0, x=size-1) which are seam positions under the same condition.
+    for x in prange(0, size):
+        if x % ss == 0 or x % ss == ss - 1:
+            continue
+        T[0, x] = (T[0, x] + T[size - 1, x]) % 4
+        T[size - 1, x] = T[0, x]
 
 
 #VIDEO_W, VIDEO_H = 192, 108
