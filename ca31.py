@@ -21,11 +21,11 @@ def tumble_njit(spile):
         lut = arr = np.array([3, 2, 1, 0])
         result = lut[spile] + 1
         spile[:] = result
-        #tumbled, spile = np.divmod(spile, 4)
-        #spile[:-1, :] += tumbled[1:, :]
-        #spile[1:, :] += tumbled[:-1, :]
-        #spile[:, :-1] += tumbled[:, 1:]
-        #spile[:, 1:] += tumbled[:, :-1]
+        tumbled, spile = np.divmod(spile, 4)
+        spile[:-1, :] += tumbled[1:, :]
+        spile[1:, :] += tumbled[:-1, :]
+        spile[:, :-1] += tumbled[:, 1:]
+        spile[:, 1:] += tumbled[:, :-1]
     return spile
 
 @njit
@@ -58,8 +58,8 @@ def boundary_vertical_njit(T, size, ss):
     for j in prange(1, size // ss):
         xL = j*ss - 1
         xR = j*ss
-        T[:, xL] = (T[:, xL] + T[:, xR])%4
-        T[:, xR] = (T[:, xL] + 1
+        T[:, xL] = ((T[:, xL] + T[:, xR])//2+1)%4
+        T[:, xR] = T[:, xL]
 
 # Pass 2b — horizontal seams, parallel over seam index
 @njit(parallel=True)
@@ -67,20 +67,19 @@ def boundary_horizontal_njit(T, size, ss):
     for i in prange(1, size // ss):
         yT = i*ss - 1
         yB = i*ss
-        T[yT, :] = (T[yT, :] + T[yB, :])%4
-        T[yB, :] = T[yT, :] + 1
+        T[yT, :] = ((T[yT, :] + T[yB, :])//2+1)%4
+        T[yB, :] = T[yT, :]
 
 
 @njit(parallel=True)
-def wrap_border_njit(T, size):
-    # outer wrap: left col touches right col, top row touches bottom row
-    # same rule as internal seams: both sides become (a+b)%4
+def wrap_borderv_njit(T, size):
     T[:, 0] = (T[:, 0] + T[:, size - 1]) % 4
     T[:, size - 1] = T[:, 0]
-    T[:, 0] = T[:, 0] + 1
+
+@njit(parallel=True)
+def wrap_borderh_njit(T, size):
     T[0, :] = (T[0, :] + T[size - 1, :]) % 4
     T[size - 1, :] = T[0, :]
-    T[0, :] = T[0, :] + 1
 
 
 #VIDEO_W, VIDEO_H = 192, 108
@@ -96,20 +95,20 @@ writer = imageio.get_writer(
     macro_block_size=None,
 )
 
-ss = 15
+ss = 16
 size = ss*3
 
 VIDEO_W, VIDEO_H = size, size
 
 C = np.zeros((size,size), dtype='int')
-C = C+4
-#bsize = ss//2
-#if size%2==0:
-#    C[size//2-bsize:size//2+bsize, size//2-bsize:size//2+bsize] = 0
-#    #C[size//2-bsize:size//2+bsize, size//2-bsize+ss:size//2+bsize+ss] = 0
-#    #C[size//2-bsize:size//2+bsize, size//2-bsize-ss:size//2+bsize-ss] = 0
-#else:
-#    C[size//2-bsize:size//2+bsize+1, size//2-bsize:size//2+bsize+1] = 0
+C = C+2
+bsize = ss//2
+if size%2==0:
+    C[size//2-bsize:size//2+bsize, size//2-bsize:size//2+bsize] = 4
+    #C[size//2-bsize:size//2+bsize, size//2-bsize+ss:size//2+bsize+ss] = 0
+    #C[size//2-bsize:size//2+bsize, size//2-bsize-ss:size//2+bsize-ss] = 0
+else:
+    C[size//2-bsize:size//2+bsize+1, size//2-bsize:size//2+bsize+1] = 0
 #
 #bsize = 1
 #if size%2==0:
@@ -154,9 +153,10 @@ for tick in range(4000):
     #    C[size//2-1:size//2+1, size//2-1:size//2+1] = 6
 
     tumble_tiles_parallel_njit(C, size, ss, 0, 0)
-    boundary_horizontal_njit(C, size, ss)            # Pass 2b
     boundary_vertical_njit(C, size, ss)              # Pass 2a
-    wrap_border_njit(C, size)                        # outer wrap
+    wrap_borderv_njit(C, size)                        # outer wrap
+    boundary_horizontal_njit(C, size, ss)            # Pass 2b
+    wrap_borderh_njit(C, size)                        # outer wrap
 
     if tick%1==0 and tick>=0:
         framecount += 1
